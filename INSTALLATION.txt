@@ -1,0 +1,23 @@
+PLANNING FAMILIAL V3 — INSTALLATION
+
+1. Sur GitHub, remplace l'ancien index.html par le nouveau index.html.
+2. Attends 2 à 5 minutes, puis actualise le site.
+3. Test manuel :
+   - ouvre la fiche Edan;
+   - clique sur « Importer le dispatch »;
+   - colle le message complet;
+   - valide;
+   - demande à Otilia d'actualiser son site.
+
+Cette version reconnaît :
+- mission LCT avec numéro de Truck;
+- mission TCP sans numéro de Truck;
+- date, heure, entreprise, adresse, superviseur, téléphone et PO;
+- remplacement automatique de l'ancien dispatch par le nouveau.
+
+IMPORTANT POUR LE RACCOURCI IPHONE
+Le raccourci actuel ouvre seulement le site. Pour transmettre le SMS, il faudra ensuite :
+1. encoder « Entrée de raccourci » avec l'action « Encodage URL »;
+2. construire :
+   https://taclargabon.github.io/planning-familial/?dispatch=[texte encodé]
+3. ouvrir cette URL.
