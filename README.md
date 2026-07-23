@@ -1,28 +1,20 @@
-# Planning Familial
+# Planning Familial — Firebase Auth
 
-Application familiale simple pour Edan, Otilia et Kayla.
+## Fichiers
 
-## Mise en ligne sur GitHub Pages
+- `index.html` : application avec connexion e-mail / mot de passe
+- `firestore.rules` : règles Firestore réservées aux utilisateurs connectés
 
-1. Créer un nouveau dépôt GitHub.
-2. Ajouter le fichier `index.html` à la racine du dépôt.
-3. Aller dans **Settings > Pages**.
-4. Dans **Build and deployment**, choisir :
-   - Source : **Deploy from a branch**
-   - Branch : **main**
-   - Dossier : **/(root)**
-5. Enregistrer.
-6. Attendre quelques minutes, puis ouvrir le lien GitHub Pages généré.
+## GitHub
 
-## Version actuelle
+Remplacer l'ancien `index.html` du dépôt `planning-familial` par celui-ci.
 
-- Import manuel du dispatch d’Edan
-- Fiche travail d’Edan avec adresse, camion, superviseur, PO et ETA
-- Planning habituel d’Otilia avec jours off et autres activités
-- Activités de Kayla avec gymnastique, Mathnasium et CLA Church
-- Photos intégrées
-- Sauvegarde locale dans le navigateur
+## Firebase Rules
 
-## Étape suivante
+Dans Firestore :
 
-Connexion Firebase pour synchroniser les données entre plusieurs appareils et automatiser l’import du dispatch.
+1. Ouvrir l'onglet **Règles**
+2. Remplacer tout le contenu par celui de `firestore.rules`
+3. Cliquer sur **Publier**
+
+Après publication, seuls les utilisateurs Firebase Authentication connectés peuvent lire ou modifier le planning.
