@@ -1,11 +1,22 @@
-PLANNING FAMILIAL V5.5 — FRANÇAIS / ENGLISH (CANADA)
+PLANNING FAMILIAL — V5.6 FINALE
 
-- Sélecteur de langue : 🇫🇷 Français | 🇨🇦 English
-- Bascule instantanée et mémorisation de la langue
-- Vocabulaire terrain canadien : Foreman, Foreman Phone, Dispatch, Trouble Call, Linemen Crew, Truck, PO Number, Open in Google Maps
-- Détection automatique des équipes :
-  Richmond / Surrey / Langley / Delta → BC Hydro / PEI
-  Coquitlam / Port Moody / Maple Ridge → BC Hydro / Graham
-  Burnaby / Vancouver / North Vancouver / West Vancouver / East Vancouver → BC Hydro / Allteck
-- Valeur complète enregistrée automatiquement, sans choix manuel du sous-traitant
-- Firebase, dispatchs, Trouble Calls et nettoyage automatique conservés
+NOUVEAUTÉS
+- Détection automatique du type de mission TCP ou LCT à partir du contenu du dispatch.
+- Les dispatchs « No TMP » sans camion sont classés TCP.
+- Les dispatchs avec camion, unité, TMP ou instructions d’installation sont classés LCT.
+- Pour une mission TCP, le camion s’affiche « Non requis ».
+- Lecture améliorée des dates May-27-2026 et des heures 0630.
+- Extraction du client, du projet, de la ville, de l’adresse, du Foreman, du téléphone et du PO.
+- Le libellé « Superviseur / Contremaître » est remplacé par « Foreman ».
+- Détection Linemen conservée : BC Hydro / PEI, Graham ou Allteck selon la ville.
+- Firebase et les données existantes sont conservés.
+
+EXEMPLE TESTÉ
+Please confirm May-27-2026 - Wednesday job at 0630 for Fraser Crossing GP - Patullo Bridge Replacement in Surrey at 12246 112a Ave do No TMP - Hand-drawn Req.. - Celine 604-329-6092 PO PBR-PO-GEN-16472
+
+RÉSULTAT ATTENDU
+- Type de mission : TCP
+- Truck : Non requis
+- TMP : No TMP
+- Hand-drawn : Required
+- Foreman : Celine
