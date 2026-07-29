@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.6.1 — Détection TCP / LCT</title>
+<title>Planning Familial V5.5 — Linemen crew automatique</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -316,42 +316,11 @@ function setSyncStatus(type,text){
   syncText.textContent=text;
 }
 
-function upgradeDispatchRecord(record){
-  if(!record || typeof record!=='object') return record;
-  const source=record.raw_message || record.message || record.dispatch_text || '';
-  if(!source) return record;
-  const reparsed=parseDispatchMessage(source);
-  if(!reparsed) return record;
-
-  // Réanalyse volontairement les champs dépendant du contenu du dispatch.
-  // Les champs personnels ajoutés ensuite (ETA, linemen, etc.) sont conservés.
-  return {
-    ...record,
-    date: reparsed.date || record.date,
-    start_time: reparsed.start_time || record.start_time,
-    company: reparsed.company || record.company,
-    project: reparsed.project || record.project,
-    address: reparsed.address || record.address,
-    role: reparsed.role,
-    truck: reparsed.role==='TCP' ? '' : (reparsed.truck || record.truck || ''),
-    tmp_status: reparsed.tmp_status,
-    hand_drawn: reparsed.hand_drawn,
-    supervisor: reparsed.supervisor || record.supervisor,
-    supervisor_phone: reparsed.supervisor_phone || record.supervisor_phone,
-    po: reparsed.po || record.po,
-    raw_message: source,
-    parser_version: '5.6.1'
-  };
-}
-
 function normalizeData(value){
   const d=value||{};
   d.edan=d.edan||{};
   d.edan.dispatches=d.edan.dispatches||{};
-  Object.keys(d.edan.dispatches).forEach(key=>{
-    d.edan.dispatches[key]=upgradeDispatchRecord(d.edan.dispatches[key]);
-  });
-  d.edan.troubleCall=upgradeDispatchRecord(d.edan.troubleCall||null);
+  d.edan.troubleCall=d.edan.troubleCall||null;
   if(d.edan.date && !d.edan.dispatches[d.edan.date]){
     const legacy={...d.edan};
     delete legacy.dispatches;
@@ -565,15 +534,12 @@ function renderEdan(){
     </div>
     <div class="info"><span>${label} · Date de travail</span><strong>${esc(formatWorkDate(d.date||key))}</strong></div>
     <div class="info"><span>Entreprise cliente</span><strong>${esc(d.company||'—')}</strong></div>
-    ${d.project?`<div class="info"><span>Projet</span><strong>${esc(d.project)}</strong></div>`:''}
     <div class="info"><span>Adresse du chantier</span><strong>${esc(cleanDispatchAddress(d.address))}</strong></div>
     <div class="info"><span>Heure de début</span><strong>${esc(d.start_time||'—')}</strong></div>
-    <div class="info"><span>Type de mission</span><strong>${esc(d.role||'À confirmer')}</strong></div>
-    <div class="info"><span>Camion / Truck</span><strong>${esc(d.role==='TCP'?'Non requis':(d.truck||'À confirmer'))}</strong></div>
-    <div class="info"><span>TMP</span><strong>${esc(d.tmp_status||'À confirmer')}</strong></div>
-    ${d.hand_drawn?`<div class="info"><span>Hand-drawn</span><strong>${esc(d.hand_drawn)}</strong></div>`:''}
-    <div class="info"><span>Foreman</span><strong>${esc(d.supervisor||'—')}</strong></div>
-    <div class="info"><span>Foreman Phone</span><strong>${esc(d.supervisor_phone||'—')}</strong></div>
+    <div class="info"><span>Type de mission</span><strong>${esc(d.role||'—')}</strong></div>
+    <div class="info"><span>Camion / Truck</span><strong>${esc(d.truck||'Aucun')}</strong></div>
+    <div class="info"><span>Superviseur</span><strong>${esc(d.supervisor||'—')}</strong></div>
+    <div class="info"><span>Téléphone</span><strong>${esc(d.supervisor_phone||'—')}</strong></div>
     <div class="info"><span>Linemen crew</span><strong>${d.linemen_present===true?'Oui':d.linemen_present===false?'Non':'À confirmer'}</strong></div>
     ${d.linemen_present===true?`<div class="info"><span>Foreman / entreprise de linemen</span><strong>${esc((linemenCompaniesForCity(d.linemen_city||detectLinemenCity(d.address||''))[0])||d.linemen_company||'À confirmer')}</strong>${d.linemen_city?`<small style="display:block;margin-top:5px;color:var(--muted)">Zone détectée : ${esc(d.linemen_city)}</small>`:''}</div>`:''}
     <div class="info"><span>PO</span><strong>${esc(d.po||'—')}</strong></div>
@@ -713,14 +679,14 @@ function parseDispatchMessage(t){
   const raw=(t||'').trim();
   if(!raw)return null;
   const clean=raw.replace(/\r?\n/g,' ').replace(/\s+/g,' ').trim();
-  const normalized=clean.replace(/[–—]/g,'-');
 
   const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
-  const dateMatch=normalized.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\/ ](\d{1,2})[-\/ ](\d{4})\b/i);
-  const timeMatch=normalized.match(/\b(?:job\s+at|start(?:ing)?(?:\s+time)?[:\s]*)\s*(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?\b/i);
-  const truckMatch=normalized.match(/\b(?:LCT\s*)?(?:Truck|Pickup|Unit)\s*#?\s*([A-Za-z]*\d+[A-Za-z0-9-]*)\b/i);
-  const poMatch=normalized.match(/\bPO(?:\s+Number)?\s*#?\s*([A-Za-z0-9-]+)\b/i);
-  const phoneMatch=normalized.match(/\b(?:\+?1[\s.-]?)?\(?(\d{3})\)?[\s.-](\d{3})[\s.-](\d{4})\b/);
+  const dateMatch=clean.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\/ ](\d{1,2})[-\/ ](\d{4})\b/i);
+  const timeMatch=clean.match(/\b(?:job\s+at|start(?:ing)?(?:\s+time)?[:\s]*)\s*(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?\b/i);
+  const companyMatch=clean.match(/\bfor\s+(.+?)\s+in\s+/i);
+  const truckMatch=clean.match(/\b(?:LCT\s*)?Truck\s*#?\s*([A-Za-z0-9-]+)\b/i);
+  const poMatch=clean.match(/\bPO\s*#?\s*([A-Za-z0-9-]+)\b/i);
+  const phoneMatch=clean.match(/\b(?:\+?1[\s.-]?)?\(?(\d{3})\)?[\s.-](\d{3})[\s.-](\d{4})\b/);
 
   let start='';
   if(timeMatch){
@@ -734,58 +700,35 @@ function parseDispatchMessage(t){
 
   let date='';
   if(dateMatch){
-    const key=dateMatch[1][0].toUpperCase()+dateMatch[1].slice(1,3).toLowerCase();
-    date=`${dateMatch[3]}-${months[key]}-${String(dateMatch[2]).padStart(2,'0')}`;
+    const mon=months[dateMatch[1][0].toUpperCase()+dateMatch[1].slice(1,3).toLowerCase()];
+    date=`${dateMatch[3]}-${mon}-${String(dateMatch[2]).padStart(2,'0')}`;
   }
 
-  // Segment principal: "for CLIENT - PROJECT in CITY at ADDRESS"
-  let company='', project='', city='', address='';
-  const mainMatch=normalized.match(/\bfor\s+(.+?)\s+in\s+([A-Za-zÀ-ÿ .'-]+?)\s+at\s+(\d{1,6}\s+.+?)(?=\s+(?:do\s+)?no\s+tmp\b|\s+hand[- ]?drawn\b|\s+(?:LCT\s+)?(?:Truck|Pickup|Unit)\b|\s+PO\b|\s+(?:Foreman|Supervisor|Contact|Call)\b|$)/i);
-  if(mainMatch){
-    const clientProject=mainMatch[1].trim().replace(/\s+-\s+$/,'');
-    const pieces=clientProject.split(/\s+-\s+/);
-    company=(pieces.shift()||'').trim();
-    project=pieces.join(' - ').trim();
-    city=mainMatch[2].trim();
-    address=`${mainMatch[3].trim()}, ${city}`;
+  let address='';
+  const locationMatch=clean.match(/\bin\s+([A-Za-zÀ-ÿ .'-]+?)\s+at\s+(\d{1,6}\s+.+?)(?=\s+(?:do\s*\(|\(TMP|LCT\s+Truck|Truck\s*#?|PO\s*#?|Supervisor|Please\s+confirm|$))/i);
+  if(locationMatch){
+    address=`${locationMatch[2].trim()}, ${locationMatch[1].trim()}`;
   }
 
   let supervisor='';
   if(phoneMatch){
-    let before=normalized.slice(0,phoneMatch.index).trim();
-    before=before.replace(/[.\s-]+$/,'');
-    const explicit=before.match(/(?:Foreman|Supervisor|Contact|Call)\s*[:\-]?\s*([A-Za-zÀ-ÿ' -]{2,50})$/i);
-    if(explicit) supervisor=explicit[1].trim();
-    else {
-      const tail=before.split(/\s+-\s+/).pop().trim();
-      if(/^[A-Za-zÀ-ÿ' -]{2,40}$/.test(tail)) supervisor=tail;
-      else supervisor=(before.split(/\s+/).pop()||'').trim();
-    }
+    const idx=phoneMatch.index;
+    const before=clean.slice(0,idx).replace(/\b(?:Supervisor|Contact|Call)\b[:\s-]*/ig,' ').trim();
+    const words=before.split(/\s+/);
+    supervisor=words.slice(-2).join(' ');
   }
 
   const phone=phoneMatch?`${phoneMatch[1]}-${phoneMatch[2]}-${phoneMatch[3]}`:'';
   const truck=truckMatch?truckMatch[1]:'';
-  const noTmp=/\b(?:do\s+)?no[- ]?tmp\b/i.test(normalized);
-  const hasTmpNumber=/\bTMP\s*#?\s*[A-Za-z0-9-]+\b/i.test(normalized) && !noTmp;
-  const handDrawn=/\bhand[- ]?drawn\s*(?:req(?:uired)?\.?)?/i.test(normalized);
-  const explicitTcp=/\bTCP\b|Traffic\s+Control\s+Person/i.test(normalized);
-  const explicitLct=/\bLCT\b|Lane\s+Closure\s+Technician/i.test(normalized);
-  const setupWords=/\b(set\s*up|lane\s+closure|cones?|signage|signs?|equipment)\b/i.test(normalized);
-
-  let role='À confirmer';
-  if(explicitTcp || (noTmp && !truck)) role='TCP';
-  else if(explicitLct || truck || hasTmpNumber || setupWords) role='LCT';
+  const role=truck?'LCT':'TCP';
 
   return {
     date,
     start_time:start,
-    company,
-    project,
+    company:companyMatch?companyMatch[1].trim():'',
     address,
     role,
     truck,
-    tmp_status:noTmp?'No TMP':(hasTmpNumber?'TMP détecté':(role==='TCP'?'No TMP':'À confirmer')),
-    hand_drawn:handDrawn?'Required':'',
     supervisor,
     supervisor_phone:phone,
     po:poMatch?poMatch[1]:'',
@@ -794,8 +737,7 @@ function parseDispatchMessage(t){
     linemen_city:detectLinemenCity(address||raw),
     linemen_company:'',
     raw_message:raw,
-    imported_at:new Date().toISOString(),
-    parser_version:'5.6.1'
+    imported_at:new Date().toISOString()
   };
 }
 

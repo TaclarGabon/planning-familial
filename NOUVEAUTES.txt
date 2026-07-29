@@ -1,9 +1,27 @@
-PLANNING FAMILIAL V5.6.1 — CORRECTION TCP / LCT
+PLANNING FAMILIAL V5.4
 
-- Réanalyse automatique des dispatchs déjà enregistrés dans Firebase.
-- Détection TCP si « No TMP » est présent et qu’aucun camion n’est détecté.
-- Affichage Camion : Non requis pour TCP.
-- Détection Hand-drawn Required.
-- Foreman et Foreman Phone utilisés dans l’interface.
-- Repère visible V5.6.1 pour vérifier que la bonne version est chargée.
-- Les informations ETA et Linemen existantes sont conservées.
+- Linemen crew automatique selon la ville détectée dans le dispatch.
+- Richmond, Surrey, Langley, Delta : BC Hydro / PEI.
+- Coquitlam, Port Moody, Maple Ridge : BC Hydro / Graham.
+- Burnaby, Vancouver, North Vancouver, West Vancouver, East Vancouver : BC Hydro / Allteck.
+- Suppression du menu déroulant : un clic sur « Oui » affiche directement l’équipe correspondante.
+- Si la ville n’est pas reconnue, l’application affiche « À confirmer ».
+
+PLANNING FAMILIAL V5.3 — LINEMEN CREW
+
+Nouveautés :
+- Ajout de la question « Linemen crew présent? » : Oui ou Non.
+- Détection automatique de la ville à partir du dispatch.
+- Richmond, Surrey, Langley et Delta : BC Hydro ou PEI.
+- Coquitlam, Port Moody et Maple Ridge : Graham.
+- Burnaby, Vancouver, North Vancouver, West Vancouver et East Vancouver : BC Hydro ou Altaq.
+- Le choix est enregistré et affiché dans la fiche du dispatch.
+- Dimanche à samedi et Trouble Call sont conservés.
+
+
+V5.5 — Correction Linemen crew
+- Richmond, Surrey, Langley et Delta : BC Hydro / PEI.
+- Coquitlam, Port Moody et Maple Ridge : BC Hydro / Graham.
+- Burnaby et les zones de Vancouver : BC Hydro / Allteck.
+- Les deux entreprises sont désormais enregistrées comme une seule valeur, sans sélection séparée.
+- Les anciens dispatches déjà enregistrés affichent aussi automatiquement la bonne combinaison selon la ville.
