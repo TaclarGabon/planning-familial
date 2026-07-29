@@ -1,0 +1,10 @@
+PLANNING FAMILIAL V5.3 — LINEMEN CREW
+
+Nouveautés :
+- Ajout de la question « Linemen crew présent? » : Oui ou Non.
+- Détection automatique de la ville à partir du dispatch.
+- Richmond, Surrey, Langley et Delta : BC Hydro ou PEI.
+- Coquitlam, Port Moody et Maple Ridge : Graham.
+- Burnaby, Vancouver, North Vancouver, West Vancouver et East Vancouver : BC Hydro ou Altaq.
+- Le choix est enregistré et affiché dans la fiche du dispatch.
+- Dimanche à samedi et Trouble Call sont conservés.

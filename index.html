@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.2 — Dimanche à samedi</title>
+<title>Planning Familial V5.3 — Linemen crew</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -69,6 +69,13 @@ textarea{min-height:180px}
 .repeat-days label{margin:0;font-weight:600}
 .repeat-days input{width:auto;margin-right:5px}
 .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+
+.linemen-box{margin-top:14px;padding:14px;border:1px solid var(--border);border-radius:14px;background:#f8fbfc}
+.linemen-question{font-weight:800;margin-bottom:9px}
+.linemen-choices{display:flex;gap:10px;flex-wrap:wrap}
+.linemen-choice{display:flex;align-items:center;gap:6px;margin:0;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:#fff;cursor:pointer}
+.linemen-choice input{width:auto;margin:0}
+.linemen-hint{font-size:12px;color:var(--muted);margin-top:9px}
 @media(max-width:750px){.grid{grid-template-columns:1fr}}
 </style>
 <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js"></script>
@@ -146,7 +153,22 @@ textarea{min-height:180px}
 <div class="modal" id="dispatchModal">
   <div class="modalbox">
     <h2>Importer le dispatch d’Edan</h2>
-    <textarea id="dispatchText" placeholder="Colle ici le message du dispatch Bearclaw"></textarea>
+    <textarea id="dispatchText" placeholder="Colle ici le message du dispatch Bearclaw" oninput="refreshLinemenOptions()"></textarea>
+
+    <div class="linemen-box">
+      <div class="linemen-question">Linemen crew présent sur le chantier?</div>
+      <div class="linemen-choices">
+        <label class="linemen-choice"><input type="radio" name="linemenPresent" value="yes" onchange="refreshLinemenOptions()"> Oui</label>
+        <label class="linemen-choice"><input type="radio" name="linemenPresent" value="no" onchange="refreshLinemenOptions()"> Non</label>
+      </div>
+      <div id="linemenCompanyWrap" class="hidden">
+        <label>Foreman / entreprise de linemen
+          <select id="linemenCompany"></select>
+        </label>
+      </div>
+      <div id="linemenHint" class="linemen-hint">La ville sera détectée automatiquement dans l’adresse importée.</div>
+    </div>
+
     <div class="actions">
       <button class="secondary" onclick="closeModal('dispatchModal')">Annuler</button>
       <button class="primary" onclick="importDispatch()">Importer</button>
@@ -518,6 +540,8 @@ function renderEdan(){
     <div class="info"><span>Camion / Truck</span><strong>${esc(d.truck||'Aucun')}</strong></div>
     <div class="info"><span>Superviseur</span><strong>${esc(d.supervisor||'—')}</strong></div>
     <div class="info"><span>Téléphone</span><strong>${esc(d.supervisor_phone||'—')}</strong></div>
+    <div class="info"><span>Linemen crew</span><strong>${d.linemen_present===true?'Oui':d.linemen_present===false?'Non':'À confirmer'}</strong></div>
+    ${d.linemen_present===true?`<div class="info"><span>Foreman / entreprise de linemen</span><strong>${esc(d.linemen_company||'À confirmer')}</strong>${d.linemen_city?`<small style="display:block;margin-top:5px;color:var(--muted)">Zone détectée : ${esc(d.linemen_city)}</small>`:''}</div>`:''}
     <div class="info"><span>PO</span><strong>${esc(d.po||'—')}</strong></div>
     <div class="info"><span>ETA maison</span><strong>${esc(d.eta||'Non renseignée')}</strong></div>
     <div class="eta-row">
@@ -571,9 +595,84 @@ function renderKayla(){
 }
 function openDispatch(){
   dispatchText.value='';
+  document.querySelectorAll('input[name="linemenPresent"]').forEach(r=>r.checked=false);
+  linemenCompany.innerHTML='';
+  linemenCompanyWrap.classList.add('hidden');
+  linemenHint.textContent='La ville sera détectée automatiquement dans l’adresse importée.';
   const label=edanSelectedSlot==='trouble'?'Trouble Call':weekdayNames[Number(edanSelectedSlot)];
   dispatchText.placeholder=`Colle ici le dispatch pour ${label}…`;
   dispatchModal.classList.add('show');
+}
+
+
+function normalizeCityText(value){
+  return (value||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/[.,]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function detectLinemenCity(value){
+  const text=normalizeCityText(value);
+  const cityRules=[
+    {city:'North Vancouver', patterns:['north vancouver','north van']},
+    {city:'West Vancouver', patterns:['west vancouver','west van']},
+    {city:'East Vancouver', patterns:['east vancouver','east van']},
+    {city:'Port Moody', patterns:['port moody','port mody']},
+    {city:'Maple Ridge', patterns:['maple ridge']},
+    {city:'Richmond', patterns:['richmond']},
+    {city:'Surrey', patterns:['surrey']},
+    {city:'Langley', patterns:['langley']},
+    {city:'Delta', patterns:['delta']},
+    {city:'Coquitlam', patterns:['coquitlam']},
+    {city:'Burnaby', patterns:['burnaby']},
+    {city:'Vancouver', patterns:['vancouver']}
+  ];
+  const found=cityRules.find(rule=>rule.patterns.some(pattern=>text.includes(pattern)));
+  return found?found.city:'';
+}
+
+function linemenCompaniesForCity(city){
+  if(['Richmond','Surrey','Langley','Delta'].includes(city))return ['BC Hydro','PEI'];
+  if(['Coquitlam','Port Moody','Maple Ridge'].includes(city))return ['Graham'];
+  if(['Burnaby','Vancouver','North Vancouver','West Vancouver','East Vancouver'].includes(city))return ['BC Hydro','Altaq'];
+  return [];
+}
+
+function selectedLinemenAnswer(){
+  const selected=document.querySelector('input[name="linemenPresent"]:checked');
+  return selected?selected.value:'';
+}
+
+function refreshLinemenOptions(){
+  const answer=selectedLinemenAnswer();
+  const parsed=parseDispatchMessage(dispatchText.value);
+  const city=detectLinemenCity((parsed&&parsed.address)||dispatchText.value);
+  const companies=linemenCompaniesForCity(city);
+
+  if(answer!=='yes'){
+    linemenCompanyWrap.classList.add('hidden');
+    linemenCompany.innerHTML='';
+    linemenHint.textContent=answer==='no'
+      ? 'Aucune équipe de linemen indiquée.'
+      : 'La ville sera détectée automatiquement dans l’adresse importée.';
+    return;
+  }
+
+  linemenCompanyWrap.classList.remove('hidden');
+  linemenCompany.innerHTML='';
+  const options=companies.length?companies:['À confirmer'];
+  options.forEach(company=>{
+    const option=document.createElement('option');
+    option.value=company;
+    option.textContent=company;
+    linemenCompany.appendChild(option);
+  });
+  linemenHint.textContent=city
+    ? `Ville détectée : ${city}. Choix proposés : ${options.join(' ou ')}.`
+    : 'Ville non reconnue. Le choix sera enregistré « À confirmer ».';
 }
 
 function parseDispatchMessage(t){
@@ -634,6 +733,9 @@ function parseDispatchMessage(t){
     supervisor_phone:phone,
     po:poMatch?poMatch[1]:'',
     eta:null,
+    linemen_present:null,
+    linemen_city:detectLinemenCity(address||raw),
+    linemen_company:'',
     raw_message:raw,
     imported_at:new Date().toISOString()
   };
@@ -666,10 +768,37 @@ function importDispatch(){
     alert('Colle d’abord le message du dispatch.');
     return;
   }
-  if(!applyDispatchMessage(t,'manual')){
+
+  const linemenAnswer=selectedLinemenAnswer();
+  if(!linemenAnswer){
+    alert('Choisis Oui ou Non pour le linemen crew.');
+    return;
+  }
+
+  const parsed=parseDispatchMessage(t);
+  if(!parsed){
     alert('Le message n’a pas pu être analysé.');
     return;
   }
+  parsed.import_source='manual';
+  parsed.imported_at=new Date().toISOString();
+  parsed.linemen_present=linemenAnswer==='yes';
+  parsed.linemen_city=detectLinemenCity(parsed.address||t);
+  parsed.linemen_company=parsed.linemen_present?(linemenCompany.value||'À confirmer'):'';
+
+  if(edanSelectedSlot==='trouble'){
+    parsed.date=parsed.date||today();
+    data.edan.troubleCall=parsed;
+  }else{
+    const selectedKey=selectedEdanDateKey();
+    const targetKey=parsed.date||selectedKey;
+    parsed.date=targetKey;
+    data.edan.dispatches=data.edan.dispatches||{};
+    data.edan.dispatches[targetKey]=parsed;
+    edanSelectedSlot=dateFromKey(targetKey).getDay();
+  }
+
+  save();
   closeModal('dispatchModal');
   renderEdan();
 }
