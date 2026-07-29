@@ -76,7 +76,12 @@ textarea{min-height:180px}
 .linemen-choice{display:flex;align-items:center;gap:6px;margin:0;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:#fff;cursor:pointer}
 .linemen-choice input{width:auto;margin:0}
 .linemen-hint{font-size:12px;color:var(--muted);margin-top:9px}
-@media(max-width:750px){.grid{grid-template-columns:1fr}}
+.lang-switch{display:flex;gap:6px;justify-content:flex-end;margin-bottom:12px;flex-wrap:wrap}
+.lang-btn{padding:7px 10px;border:1px solid var(--border);background:#fff;color:var(--text);border-radius:999px;font-size:12px}
+.lang-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.lang-select-wrap{margin-bottom:14px}
+.auto-company{padding:11px;border:1px solid #ccd9e1;border-radius:10px;margin-top:5px;background:#fff;font-weight:800;color:var(--primary)}
+@media(max-width:750px){.grid{grid-template-columns:1fr}.lang-switch{justify-content:center}}
 </style>
 <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore-compat.js"></script>
@@ -86,6 +91,7 @@ textarea{min-height:180px}
 
 <div id="authScreen" class="auth-screen">
   <div class="auth-card">
+    <div class="lang-switch"><button type="button" class="lang-btn" data-lang="fr" onclick="setLanguage('fr')">🇫🇷 Français</button><button type="button" class="lang-btn" data-lang="en" onclick="setLanguage('en')">🇨🇦 English</button></div>
     <h1>Planning familial</h1>
     <div class="subtitle">Connexion réservée à la famille</div>
     <label>Adresse e-mail
@@ -100,6 +106,7 @@ textarea{min-height:180px}
 </div>
 
 <div id="appShell" class="app hidden">
+  <div class="lang-switch"><button type="button" class="lang-btn" data-lang="fr" onclick="setLanguage('fr')">🇫🇷 Français</button><button type="button" class="lang-btn" data-lang="en" onclick="setLanguage('en')">🇨🇦 English</button></div>
   <h1>Planning familial</h1>
   <div class="subtitle">Edan · Otilia · Kayla</div>
   <div class="user-bar">
@@ -162,8 +169,9 @@ textarea{min-height:180px}
         <label class="linemen-choice"><input type="radio" name="linemenPresent" value="no" onchange="refreshLinemenOptions()"> Non</label>
       </div>
       <div id="linemenCompanyWrap" class="hidden">
-        <label>Foreman / entreprise de linemen
-          <select id="linemenCompany"></select>
+        <label>Équipe de linemen
+          <div id="linemenCompanyDisplay" class="auto-company">À confirmer</div>
+          <select id="linemenCompany" class="hidden"></select>
         </label>
       </div>
       <div id="linemenHint" class="linemen-hint">La ville sera détectée automatiquement dans l’adresse importée.</div>
@@ -277,6 +285,80 @@ textarea{min-height:180px}
 </div>
 
 <script>
+const LANG_KEY='planningFamilialLanguage';
+let currentLanguage=localStorage.getItem(LANG_KEY)||'fr';
+const I18N_PAIRS=[
+['Planning familial','Family Planner'],
+['Connexion réservée à la famille','Family access only'],
+['Adresse e-mail','Email Address'],
+['Mot de passe','Password'],
+['Votre mot de passe','Your password'],
+['Se connecter','Sign In'],
+['Déconnexion','Sign Out'],
+['Connexion à Firebase…','Connecting to Firebase…'],
+['Synchronisation…','Syncing…'],
+['Synchronisé','Synced'],
+['Erreur de synchronisation','Sync error'],
+['Aucun dispatch','No dispatch'],
+['Voir le planning','View Schedule'],
+['Travail à domicile · 06:00–16:00','Work from home · 6:00 a.m.–4:00 p.m.'],
+['Aucune activité','No activity'],
+['Aucune activité aujourd’hui','No activity today'],
+['Aucune activité aujourd’hui.','No activity today.'],
+['← Retour','← Back'],
+['Importer le dispatch d’Edan','Import Edan’s Dispatch'],
+['Colle ici le message du dispatch Bearclaw','Paste the Bearclaw dispatch message here'],
+['Linemen crew présent sur le chantier?','Is a Linemen Crew on site?'],
+['Oui','Yes'],['Non','No'],
+['Équipe de linemen','Linemen Crew'],
+['La ville sera détectée automatiquement dans l’adresse importée.','The city will be detected automatically from the imported address.'],
+['Annuler','Cancel'],['Importer','Import'],['Enregistrer','Save'],['Supprimer','Delete'],['Effacer','Clear'],
+['Jour particulier d’Otilia','Otilia’s Special Day'],
+['Statut','Status'],['Travail à domicile','Work from Home'],['Jour off','Day Off'],['Rendez-vous','Appointment'],['Absente','Away'],['Date','Date'],['Note','Note'],
+['Ajouter une activité à Otilia','Add an Activity for Otilia'],['Activité','Activity'],['🚶 Marche','🚶 Walk'],['📌 Autre activité','📌 Other Activity'],['Nom de l’activité','Activity Name'],['Marche','Walk'],
+['Heure de début','Start Time'],['Heure de fin','End Time'],['Lieu','Location'],['Parc, quartier, autre lieu','Park, neighbourhood, or other location'],['Répétition','Repeat'],['Ne pas répéter','Do Not Repeat'],['Choisir les jours','Select Days'],['Répéter jusqu’au','Repeat Until'],
+['Lun.','Mon.'],['Mar.','Tue.'],['Mer.','Wed.'],['Jeu.','Thu.'],['Ven.','Fri.'],['Sam.','Sat.'],['Dim.','Sun.'],
+['Ajouter une activité à Kayla','Add an Activity for Kayla'],['🤸 Gymnastique','🤸 Gymnastics'],['📘 Cours de mathématiques','📘 Math Class'],['🙏 Activité de l’église','🙏 Church Activity'],['Logo de l’activité','Activity Logo'],['Date de départ','Start Date'],
+['Travail Bearclaw','Bearclaw Work'],['Télétravail et activités','Work from Home and Activities'],['Programme du jour','Today’s Schedule'],
+['Trouble Call','Trouble Call'],['Intervention urgente','Emergency Callout'],['Aucun dispatch enregistré.','No dispatch saved.'],['Importer le dispatch','Import Dispatch'],['Importer ou remplacer le dispatch','Import or Replace Dispatch'],
+['📍 Ouvrir dans Maps','📍 Open in Google Maps'],['Date de travail','Work Date'],['Entreprise cliente','Client Company'],['Adresse du chantier','Job Site Address'],['Type de mission','Assignment Type'],['Camion / Truck','Truck'],['Superviseur','Foreman'],['Téléphone','Foreman Phone'],['Linemen crew','Linemen Crew'],['Foreman / entreprise de linemen','Linemen Crew'],['Zone détectée','Detected Area'],['PO','PO Number'],['ETA maison','ETA Home'],['Non renseignée','Not Provided'],['Aucun','None'],['À confirmer','To Be Confirmed'],
+['Définir ETA','Set ETA'],['Effacer ce dispatch','Clear This Dispatch'],['Ajouter un jour off ou une exception','Add a Day Off or Exception'],['＋ Ajouter une activité','＋ Add Activity'],['Activités aujourd’hui','Today’s Activities'],['Exceptions aujourd’hui','Today’s Exceptions'],['Aucune exception aujourd’hui.','No exceptions today.'],['Pas de télétravail prévu','No work from home scheduled'],['Travail à la maison · 06:00 à 16:00','Work from home · 6:00 a.m. to 4:00 p.m.'],['Ajouter une activité','Add Activity'],
+['Dimanche','Sunday'],['Lundi','Monday'],['Mardi','Tuesday'],['Mercredi','Wednesday'],['Jeudi','Thursday'],['Vendredi','Friday'],['Samedi','Saturday'],
+['Aucune équipe de linemen indiquée.','No Linemen Crew indicated.'],['Ville non reconnue. Le choix sera enregistré « À confirmer ».','City not recognized. The value will be saved as “To Be Confirmed”.'],
+['Colle d’abord le message du dispatch.','Paste the dispatch message first.'],['Choisis Oui ou Non pour le linemen crew.','Select Yes or No for the Linemen Crew.'],['Le message n’a pas pu être analysé.','The message could not be parsed.'],['Nouveau dispatch reçu et synchronisé.','New dispatch received and synced.'],['Aucune adresse.','No address available.']
+];
+function tr(text){
+  if(text===null||text===undefined)return text;
+  const raw=String(text);
+  for(const [fr,en] of I18N_PAIRS){
+    if(raw===fr||raw===en)return currentLanguage==='en'?en:fr;
+  }
+  return raw;
+}
+function translateTextValue(value){
+  const leading=(value.match(/^\s*/)||[''])[0], trailing=(value.match(/\s*$/)||[''])[0];
+  const core=value.trim(); if(!core)return value;
+  const translated=tr(core);
+  return leading+translated+trailing;
+}
+function translatePage(){
+  document.documentElement.lang=currentLanguage==='en'?'en-CA':'fr-CA';
+  document.title=currentLanguage==='en'?'Family Planner V5.5 — Automatic Linemen Crew':'Planning Familial V5.5 — Linemen crew automatique';
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.dataset.lang===currentLanguage));
+  const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  let node; const nodes=[]; while(node=walker.nextNode())nodes.push(node);
+  nodes.forEach(n=>{ if(!['SCRIPT','STYLE'].includes(n.parentElement?.tagName||'')) n.nodeValue=translateTextValue(n.nodeValue); });
+  document.querySelectorAll('[placeholder]').forEach(el=>el.placeholder=tr(el.placeholder));
+  document.querySelectorAll('[alt]').forEach(el=>el.alt=tr(el.alt));
+}
+function setLanguage(lang){
+  currentLanguage=lang==='en'?'en':'fr';
+  localStorage.setItem(LANG_KEY,currentLanguage);
+  weekdayNames=currentLanguage==='en'?['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']:['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  refreshBadges();
+  if(typeof renderDetail==='function')renderDetail();
+  translatePage();
+}
 const KEY='planningFamilialFirebaseV1';
 let data=JSON.parse(localStorage.getItem(KEY)||'{"edan":{},"otilia":{"exceptions":[],"activities":[]},"kayla":{"activities":[]}}');
 data.otilia=data.otilia||{};
@@ -293,7 +375,7 @@ if(data.edan.date && !data.edan.dispatches[data.edan.date]){
 
 let current='edan';
 let edanSelectedSlot=Math.min(new Date().getDay(),6);
-const weekdayNames=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+let weekdayNames=currentLanguage==='en'?['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']:['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 let applyingRemote=false;
 let firebaseLoaded=false;
 
@@ -530,7 +612,7 @@ function renderEdan(){
     ${tabs}
     <div class="toolbar">
       <button class="primary" onclick="openDispatch()">Importer ou remplacer le dispatch</button>
-      ${d.address?'<button class="secondary" onclick="openMap()">📍 Ouvrir dans Maps</button>':''}
+      ${d.address?`<button class="secondary" onclick="openMap()">${tr('📍 Ouvrir dans Maps')}</button>`:''}
     </div>
     <div class="info"><span>${label} · Date de travail</span><strong>${esc(formatWorkDate(d.date||key))}</strong></div>
     <div class="info"><span>Entreprise cliente</span><strong>${esc(d.company||'—')}</strong></div>
@@ -538,9 +620,9 @@ function renderEdan(){
     <div class="info"><span>Heure de début</span><strong>${esc(d.start_time||'—')}</strong></div>
     <div class="info"><span>Type de mission</span><strong>${esc(d.role||'—')}</strong></div>
     <div class="info"><span>Camion / Truck</span><strong>${esc(d.truck||'Aucun')}</strong></div>
-    <div class="info"><span>Superviseur</span><strong>${esc(d.supervisor||'—')}</strong></div>
-    <div class="info"><span>Téléphone</span><strong>${esc(d.supervisor_phone||'—')}</strong></div>
-    <div class="info"><span>Linemen crew</span><strong>${d.linemen_present===true?'Oui':d.linemen_present===false?'Non':'À confirmer'}</strong></div>
+    <div class="info"><span>${tr('Superviseur')}</span><strong>${esc(d.supervisor||'—')}</strong></div>
+    <div class="info"><span>${tr('Téléphone')}</span><strong>${esc(d.supervisor_phone||'—')}</strong></div>
+    <div class="info"><span>Linemen crew</span><strong>${d.linemen_present===true?tr('Oui'):d.linemen_present===false?tr('Non'):tr('À confirmer')}</strong></div>
     ${d.linemen_present===true?`<div class="info"><span>Foreman / entreprise de linemen</span><strong>${esc((linemenCompaniesForCity(d.linemen_city||detectLinemenCity(d.address||''))[0])||d.linemen_company||'À confirmer')}</strong>${d.linemen_city?`<small style="display:block;margin-top:5px;color:var(--muted)">Zone détectée : ${esc(d.linemen_city)}</small>`:''}</div>`:''}
     <div class="info"><span>PO</span><strong>${esc(d.po||'—')}</strong></div>
     <div class="info"><span>ETA maison</span><strong>${esc(d.eta||'Non renseignée')}</strong></div>
@@ -655,6 +737,7 @@ function refreshLinemenOptions(){
   if(answer!=='yes'){
     linemenCompanyWrap.classList.add('hidden');
     linemenCompany.innerHTML='';
+    if(window.linemenCompanyDisplay)linemenCompanyDisplay.textContent=tr('À confirmer');
     linemenHint.textContent=answer==='no'
       ? 'Aucune équipe de linemen indiquée.'
       : 'La ville sera détectée automatiquement dans l’adresse importée.';
@@ -670,9 +753,10 @@ function refreshLinemenOptions(){
     option.textContent=company;
     linemenCompany.appendChild(option);
   });
+  if(window.linemenCompanyDisplay)linemenCompanyDisplay.textContent=options[0];
   linemenHint.textContent=city
-    ? `Ville détectée : ${city}. Équipe attribuée automatiquement : ${options[0]}.`
-    : 'Ville non reconnue. Le choix sera enregistré « À confirmer ».';
+    ? (currentLanguage==='en'?`City detected: ${city}. Linemen Crew assigned automatically: ${options[0]}.`:`Ville détectée : ${city}. Équipe attribuée automatiquement : ${options[0]}.`)
+    : tr('Ville non reconnue. Le choix sera enregistré « À confirmer ».');
 }
 
 function parseDispatchMessage(t){
@@ -705,7 +789,7 @@ function parseDispatchMessage(t){
   }
 
   let address='';
-  const locationMatch=clean.match(/\bin\s+([A-Za-zÀ-ÿ .'-]+?)\s+at\s+(\d{1,6}\s+.+?)(?=\s+(?:do\s*\(|\(TMP|LCT\s+Truck|Truck\s*#?|PO\s*#?|Supervisor|Please\s+confirm|$))/i);
+  const locationMatch=clean.match(/\bin\s+([A-Za-zÀ-ÿ .'-]+?)\s+at\s+(\d{1,6}\s+.+?)(?=\s+(?:do\s*\(|\(TMP|LCT\s+Truck|Truck\s*#?|PO\s*#?|Supervisor|Foreman|Please\s+confirm|$))/i);
   if(locationMatch){
     address=`${locationMatch[2].trim()}, ${locationMatch[1].trim()}`;
   }
@@ -713,7 +797,7 @@ function parseDispatchMessage(t){
   let supervisor='';
   if(phoneMatch){
     const idx=phoneMatch.index;
-    const before=clean.slice(0,idx).replace(/\b(?:Supervisor|Contact|Call)\b[:\s-]*/ig,' ').trim();
+    const before=clean.slice(0,idx).replace(/\b(?:Supervisor|Foreman|Contact|Call)\b[:\s-]*/ig,' ').trim();
     const words=before.split(/\s+/);
     supervisor=words.slice(-2).join(' ');
   }
@@ -784,7 +868,7 @@ function importDispatch(){
   parsed.imported_at=new Date().toISOString();
   parsed.linemen_present=linemenAnswer==='yes';
   parsed.linemen_city=detectLinemenCity(parsed.address||t);
-  parsed.linemen_company=parsed.linemen_present?(linemenCompany.value||'À confirmer'):'';
+  parsed.linemen_company=parsed.linemen_present?(linemenCompaniesForCity(parsed.linemen_city)[0]||'À confirmer'):'';
 
   if(edanSelectedSlot==='trouble'){
     parsed.date=parsed.date||today();
@@ -831,6 +915,7 @@ function processPendingDispatch(){
 }
 
 rememberIncomingDispatch();
+document.addEventListener('DOMContentLoaded',()=>{setLanguage(currentLanguage);});
 
 function openMap(){
   const d=selectedEdanDispatch();
@@ -841,7 +926,7 @@ function setETA(m){
   const d=selectedEdanDispatch();
   if(!d)return;
   const eta=new Date(Date.now()+m*60000);
-  d.eta=eta.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+  d.eta=eta.toLocaleTimeString(currentLanguage==='en'?'en-CA':'fr-CA',{hour:'2-digit',minute:'2-digit'});
   save();
 }
 function setCustomETA(){
