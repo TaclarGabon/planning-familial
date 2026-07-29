@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3 — Linemen crew</title>
+<title>Planning Familial V5.4 — Linemen crew automatique</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -162,9 +162,10 @@ textarea{min-height:180px}
         <label class="linemen-choice"><input type="radio" name="linemenPresent" value="no" onchange="refreshLinemenOptions()"> Non</label>
       </div>
       <div id="linemenCompanyWrap" class="hidden">
-        <label>Foreman / entreprise de linemen
-          <select id="linemenCompany"></select>
-        </label>
+        <div class="info" style="margin-top:10px">
+          <span>Linemen crew</span>
+          <strong id="linemenCompanyDisplay">À confirmer</strong>
+        </div>
       </div>
       <div id="linemenHint" class="linemen-hint">La ville sera détectée automatiquement dans l’adresse importée.</div>
     </div>
@@ -596,7 +597,7 @@ function renderKayla(){
 function openDispatch(){
   dispatchText.value='';
   document.querySelectorAll('input[name="linemenPresent"]').forEach(r=>r.checked=false);
-  linemenCompany.innerHTML='';
+  linemenCompanyDisplay.textContent='À confirmer';
   linemenCompanyWrap.classList.add('hidden');
   linemenHint.textContent='La ville sera détectée automatiquement dans l’adresse importée.';
   const label=edanSelectedSlot==='trouble'?'Trouble Call':weekdayNames[Number(edanSelectedSlot)];
@@ -634,11 +635,11 @@ function detectLinemenCity(value){
   return found?found.city:'';
 }
 
-function linemenCompaniesForCity(city){
-  if(['Richmond','Surrey','Langley','Delta'].includes(city))return ['BC Hydro','PEI'];
-  if(['Coquitlam','Port Moody','Maple Ridge'].includes(city))return ['Graham'];
-  if(['Burnaby','Vancouver','North Vancouver','West Vancouver','East Vancouver'].includes(city))return ['BC Hydro','Altaq'];
-  return [];
+function linemenCompanyForCity(city){
+  if(['Richmond','Surrey','Langley','Delta'].includes(city))return 'BC Hydro / PEI';
+  if(['Coquitlam','Port Moody','Maple Ridge'].includes(city))return 'BC Hydro / Graham';
+  if(['Burnaby','Vancouver','North Vancouver','West Vancouver','East Vancouver'].includes(city))return 'BC Hydro / Allteck';
+  return 'À confirmer';
 }
 
 function selectedLinemenAnswer(){
@@ -650,11 +651,11 @@ function refreshLinemenOptions(){
   const answer=selectedLinemenAnswer();
   const parsed=parseDispatchMessage(dispatchText.value);
   const city=detectLinemenCity((parsed&&parsed.address)||dispatchText.value);
-  const companies=linemenCompaniesForCity(city);
+  const company=linemenCompanyForCity(city);
 
   if(answer!=='yes'){
     linemenCompanyWrap.classList.add('hidden');
-    linemenCompany.innerHTML='';
+    linemenCompanyDisplay.textContent='À confirmer';
     linemenHint.textContent=answer==='no'
       ? 'Aucune équipe de linemen indiquée.'
       : 'La ville sera détectée automatiquement dans l’adresse importée.';
@@ -662,17 +663,10 @@ function refreshLinemenOptions(){
   }
 
   linemenCompanyWrap.classList.remove('hidden');
-  linemenCompany.innerHTML='';
-  const options=companies.length?companies:['À confirmer'];
-  options.forEach(company=>{
-    const option=document.createElement('option');
-    option.value=company;
-    option.textContent=company;
-    linemenCompany.appendChild(option);
-  });
+  linemenCompanyDisplay.textContent=company;
   linemenHint.textContent=city
-    ? `Ville détectée : ${city}. Choix proposés : ${options.join(' ou ')}.`
-    : 'Ville non reconnue. Le choix sera enregistré « À confirmer ».';
+    ? `Ville détectée : ${city}. L’équipe est attribuée automatiquement.`
+    : 'Ville non reconnue. L’équipe sera enregistrée « À confirmer ».';
 }
 
 function parseDispatchMessage(t){
@@ -784,7 +778,7 @@ function importDispatch(){
   parsed.imported_at=new Date().toISOString();
   parsed.linemen_present=linemenAnswer==='yes';
   parsed.linemen_city=detectLinemenCity(parsed.address||t);
-  parsed.linemen_company=parsed.linemen_present?(linemenCompany.value||'À confirmer'):'';
+  parsed.linemen_company=parsed.linemen_present?linemenCompanyForCity(parsed.linemen_city):'';
 
   if(edanSelectedSlot==='trouble'){
     parsed.date=parsed.date||today();

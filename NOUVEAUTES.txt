@@ -1,3 +1,12 @@
+PLANNING FAMILIAL V5.4
+
+- Linemen crew automatique selon la ville détectée dans le dispatch.
+- Richmond, Surrey, Langley, Delta : BC Hydro / PEI.
+- Coquitlam, Port Moody, Maple Ridge : BC Hydro / Graham.
+- Burnaby, Vancouver, North Vancouver, West Vancouver, East Vancouver : BC Hydro / Allteck.
+- Suppression du menu déroulant : un clic sur « Oui » affiche directement l’équipe correspondante.
+- Si la ville n’est pas reconnue, l’application affiche « À confirmer ».
+
 PLANNING FAMILIAL V5.3 — LINEMEN CREW
 
 Nouveautés :
