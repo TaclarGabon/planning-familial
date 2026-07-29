@@ -17,3 +17,11 @@ Nouveautés :
 - Burnaby, Vancouver, North Vancouver, West Vancouver et East Vancouver : BC Hydro ou Altaq.
 - Le choix est enregistré et affiché dans la fiche du dispatch.
 - Dimanche à samedi et Trouble Call sont conservés.
+
+
+V5.5 — Correction Linemen crew
+- Richmond, Surrey, Langley et Delta : BC Hydro / PEI.
+- Coquitlam, Port Moody et Maple Ridge : BC Hydro / Graham.
+- Burnaby et les zones de Vancouver : BC Hydro / Allteck.
+- Les deux entreprises sont désormais enregistrées comme une seule valeur, sans sélection séparée.
+- Les anciens dispatches déjà enregistrés affichent aussi automatiquement la bonne combinaison selon la ville.
