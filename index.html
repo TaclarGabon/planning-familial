@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.6 — Détection TCP / LCT</title>
+<title>Planning Familial V5.6.1 — Détection TCP / LCT</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -316,11 +316,42 @@ function setSyncStatus(type,text){
   syncText.textContent=text;
 }
 
+function upgradeDispatchRecord(record){
+  if(!record || typeof record!=='object') return record;
+  const source=record.raw_message || record.message || record.dispatch_text || '';
+  if(!source) return record;
+  const reparsed=parseDispatchMessage(source);
+  if(!reparsed) return record;
+
+  // Réanalyse volontairement les champs dépendant du contenu du dispatch.
+  // Les champs personnels ajoutés ensuite (ETA, linemen, etc.) sont conservés.
+  return {
+    ...record,
+    date: reparsed.date || record.date,
+    start_time: reparsed.start_time || record.start_time,
+    company: reparsed.company || record.company,
+    project: reparsed.project || record.project,
+    address: reparsed.address || record.address,
+    role: reparsed.role,
+    truck: reparsed.role==='TCP' ? '' : (reparsed.truck || record.truck || ''),
+    tmp_status: reparsed.tmp_status,
+    hand_drawn: reparsed.hand_drawn,
+    supervisor: reparsed.supervisor || record.supervisor,
+    supervisor_phone: reparsed.supervisor_phone || record.supervisor_phone,
+    po: reparsed.po || record.po,
+    raw_message: source,
+    parser_version: '5.6.1'
+  };
+}
+
 function normalizeData(value){
   const d=value||{};
   d.edan=d.edan||{};
   d.edan.dispatches=d.edan.dispatches||{};
-  d.edan.troubleCall=d.edan.troubleCall||null;
+  Object.keys(d.edan.dispatches).forEach(key=>{
+    d.edan.dispatches[key]=upgradeDispatchRecord(d.edan.dispatches[key]);
+  });
+  d.edan.troubleCall=upgradeDispatchRecord(d.edan.troubleCall||null);
   if(d.edan.date && !d.edan.dispatches[d.edan.date]){
     const legacy={...d.edan};
     delete legacy.dispatches;
@@ -763,7 +794,8 @@ function parseDispatchMessage(t){
     linemen_city:detectLinemenCity(address||raw),
     linemen_company:'',
     raw_message:raw,
-    imported_at:new Date().toISOString()
+    imported_at:new Date().toISOString(),
+    parser_version:'5.6.1'
   };
 }
 

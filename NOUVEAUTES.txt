@@ -1,22 +1,9 @@
-PLANNING FAMILIAL — V5.6 FINALE
+PLANNING FAMILIAL V5.6.1 — CORRECTION TCP / LCT
 
-NOUVEAUTÉS
-- Détection automatique du type de mission TCP ou LCT à partir du contenu du dispatch.
-- Les dispatchs « No TMP » sans camion sont classés TCP.
-- Les dispatchs avec camion, unité, TMP ou instructions d’installation sont classés LCT.
-- Pour une mission TCP, le camion s’affiche « Non requis ».
-- Lecture améliorée des dates May-27-2026 et des heures 0630.
-- Extraction du client, du projet, de la ville, de l’adresse, du Foreman, du téléphone et du PO.
-- Le libellé « Superviseur / Contremaître » est remplacé par « Foreman ».
-- Détection Linemen conservée : BC Hydro / PEI, Graham ou Allteck selon la ville.
-- Firebase et les données existantes sont conservés.
-
-EXEMPLE TESTÉ
-Please confirm May-27-2026 - Wednesday job at 0630 for Fraser Crossing GP - Patullo Bridge Replacement in Surrey at 12246 112a Ave do No TMP - Hand-drawn Req.. - Celine 604-329-6092 PO PBR-PO-GEN-16472
-
-RÉSULTAT ATTENDU
-- Type de mission : TCP
-- Truck : Non requis
-- TMP : No TMP
-- Hand-drawn : Required
-- Foreman : Celine
+- Réanalyse automatique des dispatchs déjà enregistrés dans Firebase.
+- Détection TCP si « No TMP » est présent et qu’aucun camion n’est détecté.
+- Affichage Camion : Non requis pour TCP.
+- Détection Hand-drawn Required.
+- Foreman et Foreman Phone utilisés dans l’interface.
+- Repère visible V5.6.1 pour vérifier que la bonne version est chargée.
+- Les informations ETA et Linemen existantes sont conservées.
