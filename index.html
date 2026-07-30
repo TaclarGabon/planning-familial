@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.5 — Linemen crew automatique</title>
+<title>Planning Familial V5.4 — Linemen crew automatique</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -162,9 +162,10 @@ textarea{min-height:180px}
         <label class="linemen-choice"><input type="radio" name="linemenPresent" value="no" onchange="refreshLinemenOptions()"> Non</label>
       </div>
       <div id="linemenCompanyWrap" class="hidden">
-        <label>Foreman / entreprise de linemen
-          <select id="linemenCompany"></select>
-        </label>
+        <div class="info" style="margin-top:10px">
+          <span>Linemen crew</span>
+          <strong id="linemenCompanyDisplay">À confirmer</strong>
+        </div>
       </div>
       <div id="linemenHint" class="linemen-hint">La ville sera détectée automatiquement dans l’adresse importée.</div>
     </div>
@@ -293,6 +294,7 @@ if(data.edan.date && !data.edan.dispatches[data.edan.date]){
 
 let current='edan';
 let edanSelectedSlot=Math.min(new Date().getDay(),6);
+let dispatchTargetDateKey=null; // Date choisie dans l'onglet au moment d'ouvrir l'import
 const weekdayNames=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 let applyingRemote=false;
 let firebaseLoaded=false;
@@ -541,7 +543,7 @@ function renderEdan(){
     <div class="info"><span>Superviseur</span><strong>${esc(d.supervisor||'—')}</strong></div>
     <div class="info"><span>Téléphone</span><strong>${esc(d.supervisor_phone||'—')}</strong></div>
     <div class="info"><span>Linemen crew</span><strong>${d.linemen_present===true?'Oui':d.linemen_present===false?'Non':'À confirmer'}</strong></div>
-    ${d.linemen_present===true?`<div class="info"><span>Foreman / entreprise de linemen</span><strong>${esc((linemenCompaniesForCity(d.linemen_city||detectLinemenCity(d.address||''))[0])||d.linemen_company||'À confirmer')}</strong>${d.linemen_city?`<small style="display:block;margin-top:5px;color:var(--muted)">Zone détectée : ${esc(d.linemen_city)}</small>`:''}</div>`:''}
+    ${d.linemen_present===true?`<div class="info"><span>Foreman / entreprise de linemen</span><strong>${esc(d.linemen_company||'À confirmer')}</strong>${d.linemen_city?`<small style="display:block;margin-top:5px;color:var(--muted)">Zone détectée : ${esc(d.linemen_city)}</small>`:''}</div>`:''}
     <div class="info"><span>PO</span><strong>${esc(d.po||'—')}</strong></div>
     <div class="info"><span>ETA maison</span><strong>${esc(d.eta||'Non renseignée')}</strong></div>
     <div class="eta-row">
@@ -594,9 +596,12 @@ function renderKayla(){
     </div>`).join(''):'<div class="subtitle">Aucune activité aujourd’hui.</div>'}`;
 }
 function openDispatch(){
+  // Verrouille la journée choisie avant l'import afin que le parseur du message
+  // ne ramène jamais l'utilisateur sur la date du jour.
+  dispatchTargetDateKey=edanSelectedSlot==='trouble'?null:selectedEdanDateKey();
   dispatchText.value='';
   document.querySelectorAll('input[name="linemenPresent"]').forEach(r=>r.checked=false);
-  linemenCompany.innerHTML='';
+  linemenCompanyDisplay.textContent='À confirmer';
   linemenCompanyWrap.classList.add('hidden');
   linemenHint.textContent='La ville sera détectée automatiquement dans l’adresse importée.';
   const label=edanSelectedSlot==='trouble'?'Trouble Call':weekdayNames[Number(edanSelectedSlot)];
@@ -634,11 +639,11 @@ function detectLinemenCity(value){
   return found?found.city:'';
 }
 
-function linemenCompaniesForCity(city){
-  if(['Richmond','Surrey','Langley','Delta'].includes(city))return ['BC Hydro / PEI'];
-  if(['Coquitlam','Port Moody','Maple Ridge'].includes(city))return ['BC Hydro / Graham'];
-  if(['Burnaby','Vancouver','North Vancouver','West Vancouver','East Vancouver'].includes(city))return ['BC Hydro / Allteck'];
-  return [];
+function linemenCompanyForCity(city){
+  if(['Richmond','Surrey','Langley','Delta'].includes(city))return 'BC Hydro / PEI';
+  if(['Coquitlam','Port Moody','Maple Ridge'].includes(city))return 'BC Hydro / Graham';
+  if(['Burnaby','Vancouver','North Vancouver','West Vancouver','East Vancouver'].includes(city))return 'BC Hydro / Allteck';
+  return 'À confirmer';
 }
 
 function selectedLinemenAnswer(){
@@ -650,11 +655,11 @@ function refreshLinemenOptions(){
   const answer=selectedLinemenAnswer();
   const parsed=parseDispatchMessage(dispatchText.value);
   const city=detectLinemenCity((parsed&&parsed.address)||dispatchText.value);
-  const companies=linemenCompaniesForCity(city);
+  const company=linemenCompanyForCity(city);
 
   if(answer!=='yes'){
     linemenCompanyWrap.classList.add('hidden');
-    linemenCompany.innerHTML='';
+    linemenCompanyDisplay.textContent='À confirmer';
     linemenHint.textContent=answer==='no'
       ? 'Aucune équipe de linemen indiquée.'
       : 'La ville sera détectée automatiquement dans l’adresse importée.';
@@ -662,17 +667,10 @@ function refreshLinemenOptions(){
   }
 
   linemenCompanyWrap.classList.remove('hidden');
-  linemenCompany.innerHTML='';
-  const options=companies.length?companies:['À confirmer'];
-  options.forEach(company=>{
-    const option=document.createElement('option');
-    option.value=company;
-    option.textContent=company;
-    linemenCompany.appendChild(option);
-  });
+  linemenCompanyDisplay.textContent=company;
   linemenHint.textContent=city
-    ? `Ville détectée : ${city}. Équipe attribuée automatiquement : ${options[0]}.`
-    : 'Ville non reconnue. Le choix sera enregistré « À confirmer ».';
+    ? `Ville détectée : ${city}. L’équipe est attribuée automatiquement.`
+    : 'Ville non reconnue. L’équipe sera enregistrée « À confirmer ».';
 }
 
 function parseDispatchMessage(t){
@@ -784,20 +782,23 @@ function importDispatch(){
   parsed.imported_at=new Date().toISOString();
   parsed.linemen_present=linemenAnswer==='yes';
   parsed.linemen_city=detectLinemenCity(parsed.address||t);
-  parsed.linemen_company=parsed.linemen_present?(linemenCompany.value||'À confirmer'):'';
+  parsed.linemen_company=parsed.linemen_present?linemenCompanyForCity(parsed.linemen_city):'';
 
   if(edanSelectedSlot==='trouble'){
     parsed.date=parsed.date||today();
     data.edan.troubleCall=parsed;
   }else{
-    const selectedKey=selectedEdanDateKey();
-    const targetKey=parsed.date||selectedKey;
+    // Pour un import manuel, la date choisie dans l'onglet est prioritaire.
+    // Exemple : si Vendredi est ouvert, le dispatch est enregistré vendredi,
+    // même si le texte est incomplet ou contient une date mal interprétée.
+    const targetKey=dispatchTargetDateKey||selectedEdanDateKey();
     parsed.date=targetKey;
     data.edan.dispatches=data.edan.dispatches||{};
     data.edan.dispatches[targetKey]=parsed;
     edanSelectedSlot=dateFromKey(targetKey).getDay();
   }
 
+  dispatchTargetDateKey=null;
   save();
   closeModal('dispatchModal');
   renderEdan();
