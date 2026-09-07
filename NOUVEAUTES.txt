@@ -1,10 +1,27 @@
-PLANNING FAMILIAL V5.3.4 — SUNDAY EXACT SYNC
+PLANNING FAMILIAL V5.3.5 — CHURCH SCHEDULE REBUILD
 
-Correction :
-- Le calendrier et la page Sunday lisent maintenant exactement la même entrée pour la même date.
-- Si le calendrier du dimanche 13 contient Recovery, Sunday affiche Recovery.
-- Si le calendrier du dimanche 13 contient Sound (FOH), Sunday affiche Sound (FOH).
-- Si le dimanche 13 est supprimé du calendrier, Sunday redevient vide.
-- Les anciennes entrées Recovery/FOH sont reconnues même si elles proviennent d'une version antérieure.
-- Après Validate, l'affichage Sunday est recalculé immédiatement.
-- Après Remove, l'affichage Sunday est effacé immédiatement.
+Cette version reconstruit complètement la gestion du dimanche.
+
+Cause corrigée :
+- Les anciennes versions mélangeaient les données Sunday avec recurringSchedules et d'anciens essais.
+- Un ancien Recovery pouvait donc continuer à apparaître même après une modification dans Calendar.
+
+Nouvelle architecture :
+- Edan possède maintenant une seule base dédiée : edan.churchSchedule.
+- Calendar lit edan.churchSchedule.
+- Validate écrit dans edan.churchSchedule.
+- Remove supprime dans edan.churchSchedule.
+- La page Sunday lit edan.churchSchedule.
+- Il n'y a plus de deuxième source Sunday.
+
+Important :
+- Au premier lancement de V5.3.5, les anciennes sélections Sunday expérimentales sont volontairement effacées UNE SEULE FOIS.
+- La page Sunday doit donc être vide au départ.
+- Ensuite :
+  1. Calendar
+  2. cliquer sur un dimanche
+  3. choisir Sound (FOH) ou Recovery
+  4. Validate
+  5. fermer Calendar
+  6. le service confirmé apparaît sur Sunday.
+- Une modification ou suppression depuis Calendar met à jour la page Sunday avec la même donnée.

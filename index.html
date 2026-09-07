@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3.4 — Sunday Exact Sync</title>
+<title>Planning Familial V5.3.5 — Church Schedule Rebuild</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -316,6 +316,13 @@ function normalizeData(value){
   d.edan=d.edan||{};
   d.edan.dispatches=d.edan.dispatches||{};
   d.edan.troubleCall=d.edan.troubleCall||null;
+  d.edan.churchSchedule=d.edan.churchSchedule||{};
+  // V5.3.5 rebuild: church Sunday data now has its own dedicated store.
+  // Clear stale Sunday values from previous experimental versions once.
+  if(d.edan.churchScheduleSchema!==535){
+    d.edan.churchSchedule={};
+    d.edan.churchScheduleSchema=535;
+  }
   if(d.edan.date && !d.edan.dispatches[d.edan.date]){
     const legacy={...d.edan};
     delete legacy.dispatches;
@@ -497,30 +504,27 @@ function renderDetail(){
 
 function normalizeSundayEvent(evt){
   if(!evt) return null;
-  const label=String(evt.label||'').trim();
-  let type=evt.type||'';
-
-  if(!type){
-    if(/^recovery$/i.test(label) || /recovery/i.test(label)) type='recovery';
-    if(/sound\s*\(foh\)|\bfoh\b/i.test(label)) type='foh';
-  }
-
+  const type=evt.type;
   if(type!=='foh' && type!=='recovery') return null;
-
   return {
     ...evt,
-    sunday_service:true,
     type,
     label:type==='foh'?'Sound (FOH)':'Recovery',
     start_time:type==='foh'?'07:00':'15:30',
     end_time:type==='foh'?'12:00':'19:30'
   };
 }
+function nextConfirmedSundayService(){
+  const schedule=(data.edan&&data.edan.churchSchedule)||{};
+  const todayKey=today();
+  const entries=Object.entries(schedule)
+    .map(([key,evt])=>[key,normalizeSundayEvent(evt)])
+    .filter(([key,evt])=>evt && key>=todayKey)
+    .sort((a,b)=>a[0].localeCompare(b[0]));
+  return entries.length?{date:entries[0][0],...entries[0][1]}:null;
+}
 function sundayServiceForSelectedDate(){
-  ensureRecurringSchedules();
-  const key=selectedEdanDateKey();
-  if(!key) return null;
-  return normalizeSundayEvent((data.recurringSchedules.edan||{})[key]);
+  return nextConfirmedSundayService();
 }
 function setSundayService(type){
   pendingSundayService=type;
@@ -531,12 +535,10 @@ function validateSundayService(){
     alert('Choose Sound (FOH) or Recovery before validating.');
     return;
   }
-  ensureRecurringSchedules();
 
+  data.edan.churchSchedule=data.edan.churchSchedule||{};
   const type=pendingSundayService;
-  data.recurringSchedules.edan[sundayCalendarPendingDate]={
-    sunday_service:true,
-    source:'calendar',
+  data.edan.churchSchedule[sundayCalendarPendingDate]={
     type,
     label:type==='foh'?'Sound (FOH)':'Recovery',
     start_time:type==='foh'?'07:00':'15:30',
@@ -547,17 +549,18 @@ function validateSundayService(){
   pendingSundayService=null;
   sundayCalendarPendingDate=null;
   save();
+
   edanSelectedSlot=0;
   closeSundayChoiceModal();
   showCalendarModal();
   renderEdan();
 }
 function clearSundayService(){
-  const key=selectedEdanDateKey();
-  ensureRecurringSchedules();
-  if(!data.recurringSchedules.edan[key]) return;
-  if(!confirm('Remove the confirmed Sunday service?')) return;
-  delete data.recurringSchedules.edan[key];
+  const service=nextConfirmedSundayService();
+  if(!service)return;
+  if(!confirm('Remove the confirmed Sunday service?'))return;
+  data.edan.churchSchedule=data.edan.churchSchedule||{};
+  delete data.edan.churchSchedule[service.date];
   save();
   renderEdan();
 }
@@ -613,7 +616,7 @@ function showCalendarModal(){
     const key=localDateKey(y,m,d);
     let evt=evts[key];
     if(person==='edan' && new Date(y,m,d,12,0,0).getDay()===0){
-      evt=normalizeSundayEvent(evt);
+      evt=normalizeSundayEvent((data.edan.churchSchedule||{})[key]);
     }
     html+=`<div class="calendar-day ${evt?'has-event':''}" onclick="editCalendarDate('${key}')">
       <span class="num">${d}</span>
@@ -690,7 +693,7 @@ function openSundayChoiceModal(key){
   ensureRecurringSchedules();
   sundayCalendarPendingDate=key;
   pendingSundayService=null;
-  const existing=normalizeSundayEvent(data.recurringSchedules.edan[key]);
+  const existing=normalizeSundayEvent((data.edan.churchSchedule||{})[key]);
   const modal=document.getElementById('sundayChoiceModal');
   const body=document.getElementById('sundayChoiceBody');
 
@@ -737,19 +740,15 @@ function chooseSundayService(type){
   renderSundayChoiceOptions();
 }
 function replaceSundayFromCalendar(){
-  ensureRecurringSchedules();
-  if(sundayCalendarPendingDate){
-    delete data.recurringSchedules.edan[sundayCalendarPendingDate];
-  }
   pendingSundayService=null;
   renderSundayChoiceOptions();
 }
 function removeSundayFromCalendar(){
-  ensureRecurringSchedules();
   if(!sundayCalendarPendingDate)return;
   if(!confirm('Remove this Sunday service?'))return;
 
-  delete data.recurringSchedules.edan[sundayCalendarPendingDate];
+  data.edan.churchSchedule=data.edan.churchSchedule||{};
+  delete data.edan.churchSchedule[sundayCalendarPendingDate];
   save();
 
   pendingSundayService=null;
@@ -777,6 +776,7 @@ function addRecurringToMonth(){
   for(let d=1;d<=days;d++){
     const dt=new Date(y,m,d);
     if(dt.getDay()===dow){
+      if(person==='edan' && dow===0){ occurrence++; continue; }
       if(occurrence%every===0){
         const key=localDateKey(y,m,d);
         data.recurringSchedules[person][key]={label,time,updated_at:new Date().toISOString()};
@@ -790,25 +790,21 @@ function addRecurringToMonth(){
   showCalendarModal();
 }
 function addSundayPreset(type){
-  ensureRecurringSchedules();
   const y=calendarState.year,m=calendarState.month;
-  const label=type==='foh'?'Sound (FOH)':'Recovery';
   const dows=[];
   const days=new Date(y,m+1,0).getDate();
   for(let d=1;d<=days;d++){
     if(new Date(y,m,d).getDay()===0)dows.push(d);
   }
-  const pick=prompt(`Sundays in ${fmtMonth(y,m)}: ${dows.join(', ')}
-Enter desired dates separated by commas (example: 13,27):`,'');
+  const pick=prompt(`Sundays in ${fmtMonth(y,m)}: ${dows.join(', ')}\nEnter desired dates separated by commas (example: 13,27):`,'');
   if(pick===null)return;
   const wanted=pick.split(',').map(x=>parseInt(x.trim(),10)).filter(n=>dows.includes(n));
+  data.edan.churchSchedule=data.edan.churchSchedule||{};
   wanted.forEach(d=>{
     const key=localDateKey(y,m,d);
-    data.recurringSchedules.edan[key]={
-      sunday_service:true,
-      source:'calendar',
+    data.edan.churchSchedule[key]={
       type,
-      label,
+      label:type==='foh'?'Sound (FOH)':'Recovery',
       start_time:type==='foh'?'07:00':'15:30',
       end_time:type==='foh'?'12:00':'19:30',
       updated_at:new Date().toISOString()
@@ -840,9 +836,9 @@ function renderEdan(){
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 10px">${dayButtons}</div>
     <button class="${isTrouble?'primary':'secondary'}" style="width:100%;margin-bottom:16px" onclick="selectEdanSlot('trouble')">🚨 Trouble Call</button>`;
 
-  // Sunday: selection is managed only from the calendar.
+  // Sunday: church schedule is managed only from Calendar.
   if(edanSelectedSlot===0){
-    const service=sundayServiceForSelectedDate();
+    const service=nextConfirmedSundayService();
     detailSubtitle.textContent='Sunday Service';
 
     detailContent.innerHTML=`
@@ -855,6 +851,7 @@ function renderEdan(){
           <span>Confirmed service</span>
           <strong>🎚️ ${esc(service.label)}</strong>
           <div style="margin-top:6px">${service.type==='foh'?'7:00 AM – 12:00 PM':'3:30 PM – 7:30 PM'}</div>
+          <div style="margin-top:6px;color:var(--muted);font-size:12px">${esc(service.date)}</div>
         </div>
       `:''}`;
     return;
