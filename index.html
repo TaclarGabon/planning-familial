@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3 — Calendriers récurrents</title>
+<title>Planning Familial V5.3.1 — Sunday validation</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -499,28 +499,40 @@ function sundayServiceForSelectedDate(){
   return data.edan.sundayServices[selectedEdanDateKey()]||null;
 }
 function setSundayService(type){
+  pendingSundayService=type;
+  renderEdan();
+}
+function validateSundayService(){
+  if(!pendingSundayService){
+    alert('Choisis Sound (FOH) ou Recovery avant de valider.');
+    return;
+  }
   data.edan.sundayServices=data.edan.sundayServices||{};
   const key=selectedEdanDateKey();
-  if(type==='foh'){
+  if(pendingSundayService==='foh'){
     data.edan.sundayServices[key]={type:'foh',label:'Sound (FOH)',start_time:'07:00',end_time:'12:00',updated_at:new Date().toISOString()};
-  }else if(type==='recovery'){
+  }else{
     data.edan.sundayServices[key]={type:'recovery',label:'Recovery',start_time:'15:30',end_time:'19:30',updated_at:new Date().toISOString()};
   }
+  pendingSundayService=null;
   save();
   renderEdan();
 }
 function clearSundayService(){
   data.edan.sundayServices=data.edan.sundayServices||{};
   const key=selectedEdanDateKey();
-  if(!data.edan.sundayServices[key])return;
-  if(!confirm('Effacer le service du dimanche ?'))return;
-  delete data.edan.sundayServices[key];
+  const existing=data.edan.sundayServices[key];
+  if(!existing && !pendingSundayService)return;
+  if(existing && !confirm('Effacer le service du dimanche ?'))return;
+  if(existing) delete data.edan.sundayServices[key];
+  pendingSundayService=null;
   save();
   renderEdan();
 }
 
 
 const calendarState={person:'edan',year:(new Date()).getFullYear(),month:(new Date()).getMonth()};
+let pendingSundayService=null;
 
 function personDisplayName(person){
   return person==='edan'?'Edan':person==='otilia'?'Otilia':'Kayla';
@@ -695,34 +707,59 @@ function renderEdan(){
     const service=sundayServiceForSelectedDate();
     const sundayKey=selectedEdanDateKey();
     detailSubtitle.textContent='Sunday Service';
+
+    // If a saved service exists, show only that confirmed service.
+    if(service){
+      detailContent.innerHTML=`
+        ${tabs}
+        ${calendarBtn}
+        <div class="info"><span>Sunday</span><strong>Sunday</strong></div>
+
+        <div class="info" style="margin-top:16px">
+          <span>Service confirmed</span>
+          <strong>🎚️ ${esc(service.label)}</strong>
+          <div style="margin-top:6px">${service.type==='foh'?'7:00 AM – 12:00 PM':'3:30 PM – 7:30 PM'}</div>
+        </div>
+
+        <button class="secondary" style="width:100%;margin-top:18px;border-color:#d66;color:#a22"
+          onclick="clearSundayService()">Clear</button>`;
+      return;
+    }
+
+    // No saved service yet: show both options, then explicit Validate.
+    const selected=pendingSundayService;
     detailContent.innerHTML=`
       ${tabs}
       ${calendarBtn}
-      <div class="info"><span>Sunday</span><strong>${esc(formatWorkDate(sundayKey))}</strong></div>
+      <div class="info"><span>Sunday</span><strong>Sunday</strong></div>
       <div class="subtitle" style="margin:16px 0 10px">Choisis le service prévu pour ce dimanche.</div>
 
-      <button class="${service&&service.type==='foh'?'primary':'secondary'}"
+      <button class="${selected==='foh'?'primary':'secondary'}"
         style="width:100%;text-align:left;margin-bottom:10px;padding:15px"
         onclick="setSundayService('foh')">
         🎚️ Sound (FOH)<br>
         <span style="font-weight:500;opacity:.8">7:00 AM – 12:00 PM</span>
       </button>
 
-      <button class="${service&&service.type==='recovery'?'primary':'secondary'}"
+      <button class="${selected==='recovery'?'primary':'secondary'}"
         style="width:100%;text-align:left;margin-bottom:10px;padding:15px"
         onclick="setSundayService('recovery')">
         🎚️ Recovery<br>
         <span style="font-weight:500;opacity:.8">3:30 PM – 7:30 PM</span>
       </button>
 
-      ${service?`
-        <div class="info" style="margin-top:16px">
-          <span>Service sélectionné</span>
-          <strong>🎚️ ${esc(service.label)} · ${esc(service.start_time)} – ${esc(service.end_time)}</strong>
+      <button class="primary" style="width:100%;margin-top:8px"
+        onclick="validateSundayService()">Validate</button>
+
+      ${selected?`
+        <div class="info" style="margin-top:14px">
+          <span>Pending selection</span>
+          <strong>🎚️ ${selected==='foh'?'Sound (FOH)':'Recovery'}</strong>
         </div>
-        <button class="secondary" style="width:100%;margin-top:18px;border-color:#d66;color:#a22"
-          onclick="clearSundayService()">Effacer la sélection</button>
-      `:''}`;
+      `:''}
+
+      <button class="secondary" style="width:100%;margin-top:14px;border-color:#d66;color:#a22"
+        onclick="clearSundayService()">Clear</button>`;
     return;
   }
 

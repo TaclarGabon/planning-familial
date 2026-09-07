@@ -1,18 +1,13 @@
-PLANNING FAMILIAL V5.3 — CALENDRIERS
+PLANNING FAMILIAL V5.3.1 — SUNDAY VALIDATION
 
-Ajouts :
-- Un calendrier mensuel pour chaque profil : Edan, Otilia et Kayla.
-- Chaque date peut recevoir une activité indépendante.
-- Activités répétitives possibles :
-  • chaque semaine
-  • toutes les 2 semaines
-- Kayla peut donc ajouter Gymnastics tous les mercredis ou un mercredi sur deux.
-- Pour Edan, le calendrier permet de planifier plusieurs dimanches dans le même mois.
-- Deux raccourcis Sunday Service :
-  • 🎚️ Sound (FOH) — 7:00 AM à 12:00 PM
-  • 🎚️ Recovery — 3:30 PM à 7:30 PM
-- Lundi à samedi et Trouble Call restent inchangés.
-- Les données sont conservées dans Firebase via le système de sauvegarde existant.
-
-Remarque :
-Cette version est construite à partir de la dernière base disponible dans cette conversation.
+Corrections :
+- L'en-tête du dimanche affiche simplement : Sunday.
+- Cliquer sur Sound (FOH) ou Recovery ne sauvegarde plus immédiatement.
+- Le choix apparaît d'abord comme sélection en attente.
+- Bouton Validate : confirme et sauvegarde dans Firebase.
+- Après validation, seul le service confirmé apparaît dans le profil.
+- Un autre membre de la famille qui ouvre le profil voit donc clairement le service confirmé.
+- Bouton Clear : supprime le service confirmé et réaffiche les deux choix.
+- Horaires :
+  • Sound (FOH) : 7:00 AM – 12:00 PM
+  • Recovery : 3:30 PM – 7:30 PM
