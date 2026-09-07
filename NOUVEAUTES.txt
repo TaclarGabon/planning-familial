@@ -1,13 +1,18 @@
-PLANNING FAMILIAL V5.4.1 — CORRECTION DATE DU DISPATCH
+PLANNING FAMILIAL V5.3 — CALENDRIERS
 
-Correction principale :
-- Lorsque l'utilisateur ouvre un jour précis (par exemple Vendredi) avant d'importer un dispatch, ce jour est maintenant verrouillé comme date de destination.
-- Le bouton Enregistrer ne peut plus renvoyer automatiquement vers la journée actuelle.
-- La date détectée dans le texte du dispatch ne remplace plus la journée choisie lors d'un import manuel.
+Ajouts :
+- Un calendrier mensuel pour chaque profil : Edan, Otilia et Kayla.
+- Chaque date peut recevoir une activité indépendante.
+- Activités répétitives possibles :
+  • chaque semaine
+  • toutes les 2 semaines
+- Kayla peut donc ajouter Gymnastics tous les mercredis ou un mercredi sur deux.
+- Pour Edan, le calendrier permet de planifier plusieurs dimanches dans le même mois.
+- Deux raccourcis Sunday Service :
+  • 🎚️ Sound (FOH) — 7:00 AM à 12:00 PM
+  • 🎚️ Recovery — 3:30 PM à 7:30 PM
+- Lundi à samedi et Trouble Call restent inchangés.
+- Les données sont conservées dans Firebase via le système de sauvegarde existant.
 
-Exemple :
-1. Ouvrir Vendredi.
-2. Cliquer sur Importer le dispatch.
-3. Coller le message et choisir le Linemen crew.
-4. Enregistrer.
-5. Le dispatch reste enregistré et affiché dans Vendredi.
+Remarque :
+Cette version est construite à partir de la dernière base disponible dans cette conversation.
