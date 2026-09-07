@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3.1 — Sunday validation</title>
+<title>Planning Familial V5.3.2 — Sunday Calendar Sync</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -363,14 +363,11 @@ function localDateKey(date=new Date()){
   return `${y}-${m}-${d}`;
 }
 function today(){return localDateKey(new Date())}
-function formatWorkDate(value){
-  if(!value)return 'Date non indiquée';
-  const parts=value.split('-').map(Number);
-  if(parts.length!==3 || parts.some(Number.isNaN))return value;
-  const [y,m,d]=parts;
-  return new Intl.DateTimeFormat('fr-CA',{
-    weekday:'long',day:'numeric',month:'long',year:'numeric'
-  }).format(new Date(y,m-1,d));
+function formatWorkDate(dateKey){
+  const parts=String(dateKey||'').split('-').map(Number);
+  if(parts.length!==3 || parts.some(Number.isNaN)) return '';
+  const dt=new Date(parts[0],parts[1]-1,parts[2],12,0,0);
+  return new Intl.DateTimeFormat('en-CA',{weekday:'long'}).format(dt);
 }
 function dateFromKey(key){
   const [y,m,d]=String(key).split('-').map(Number);
@@ -403,6 +400,10 @@ function cleanupExpiredDispatches(){
     }
   }
   return changed;
+}
+function edanSlotEnglishName(slot){
+  const names=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  return (typeof slot==='number' && slot>=0 && slot<=6)?names[slot]:'Trouble Call';
 }
 function selectedEdanDateKey(){
   if(edanSelectedSlot==='trouble')return null;
@@ -495,37 +496,39 @@ function renderDetail(){
 }
 
 function sundayServiceForSelectedDate(){
-  data.edan.sundayServices=data.edan.sundayServices||{};
-  return data.edan.sundayServices[selectedEdanDateKey()]||null;
+  ensureRecurringSchedules();
+  const evt=data.recurringSchedules.edan[selectedEdanDateKey()];
+  if(!evt || !evt.sunday_service) return null;
+  return evt;
 }
 function setSundayService(type){
   pendingSundayService=type;
   renderEdan();
 }
 function validateSundayService(){
-  if(!pendingSundayService){
-    alert('Choisis Sound (FOH) ou Recovery avant de valider.');
+  if(!sundayCalendarPendingDate || !pendingSundayService){
+    alert('Choose Sound (FOH) or Recovery before validating.');
     return;
   }
-  data.edan.sundayServices=data.edan.sundayServices||{};
-  const key=selectedEdanDateKey();
-  if(pendingSundayService==='foh'){
-    data.edan.sundayServices[key]={type:'foh',label:'Sound (FOH)',start_time:'07:00',end_time:'12:00',updated_at:new Date().toISOString()};
-  }else{
-    data.edan.sundayServices[key]={type:'recovery',label:'Recovery',start_time:'15:30',end_time:'19:30',updated_at:new Date().toISOString()};
-  }
+  ensureRecurringSchedules();
+  const type=pendingSundayService;
+  const evt = type==='foh'
+    ? {sunday_service:true,type:'foh',label:'Sound (FOH)',start_time:'07:00',end_time:'12:00',updated_at:new Date().toISOString()}
+    : {sunday_service:true,type:'recovery',label:'Recovery',start_time:'15:30',end_time:'19:30',updated_at:new Date().toISOString()};
+  data.recurringSchedules.edan[sundayCalendarPendingDate]=evt;
   pendingSundayService=null;
+  sundayCalendarPendingDate=null;
   save();
+  closeSundayChoiceModal();
+  showCalendarModal();
   renderEdan();
 }
 function clearSundayService(){
-  data.edan.sundayServices=data.edan.sundayServices||{};
   const key=selectedEdanDateKey();
-  const existing=data.edan.sundayServices[key];
-  if(!existing && !pendingSundayService)return;
-  if(existing && !confirm('Effacer le service du dimanche ?'))return;
-  if(existing) delete data.edan.sundayServices[key];
-  pendingSundayService=null;
+  ensureRecurringSchedules();
+  if(!data.recurringSchedules.edan[key]) return;
+  if(!confirm('Remove the confirmed Sunday service?')) return;
+  delete data.recurringSchedules.edan[key];
   save();
   renderEdan();
 }
@@ -533,6 +536,7 @@ function clearSundayService(){
 
 const calendarState={person:'edan',year:(new Date()).getFullYear(),month:(new Date()).getMonth()};
 let pendingSundayService=null;
+let sundayCalendarPendingDate=null;
 
 function personDisplayName(person){
   return person==='edan'?'Edan':person==='otilia'?'Otilia':'Kayla';
@@ -621,23 +625,112 @@ function shiftCalendar(delta){
 function editCalendarDate(key){
   ensureRecurringSchedules();
   const person=calendarState.person;
+  const parts=key.split('-').map(Number);
+  const dt=new Date(parts[0],parts[1]-1,parts[2],12,0,0);
+  const isSunday=dt.getDay()===0;
+
+  if(person==='edan' && isSunday){
+    openSundayChoiceModal(key);
+    return;
+  }
+
   const existing=data.recurringSchedules[person][key];
-  let label=prompt(`Planning ${personDisplayName(person)} — ${key}\nActivité :`,existing?existing.label:'');
+  let label=prompt(`Planning ${personDisplayName(person)} — ${key}
+Activity:`,existing?existing.label:'');
   if(label===null)return;
   label=label.trim();
   if(!label){
-    if(existing && confirm('Supprimer cette activité ?')){
+    if(existing && confirm('Delete this activity?')){
       delete data.recurringSchedules[person][key];
       save();
       showCalendarModal();
     }
     return;
   }
-  let time=prompt('Heure (optionnel) :',existing&&existing.time?existing.time:'');
+  let time=prompt('Time (optional):',existing&&existing.time?existing.time:'');
   if(time===null)time='';
   data.recurringSchedules[person][key]={label,time,updated_at:new Date().toISOString()};
-  save(); showCalendarModal();
+  save();
+  showCalendarModal();
 }
+
+function openSundayChoiceModal(key){
+  ensureRecurringSchedules();
+  sundayCalendarPendingDate=key;
+  pendingSundayService=null;
+  const existing=data.recurringSchedules.edan[key];
+  const modal=document.getElementById('sundayChoiceModal');
+  const body=document.getElementById('sundayChoiceBody');
+
+  if(existing && existing.sunday_service){
+    body.innerHTML=`
+      <div class="info">
+        <span>Confirmed service</span>
+        <strong>🎚️ ${esc(existing.label)}</strong>
+        <div style="margin-top:6px">${existing.type==='foh'?'7:00 AM – 12:00 PM':'3:30 PM – 7:30 PM'}</div>
+      </div>
+      <div class="subtitle" style="margin-top:14px">You already selected this service for this Sunday.</div>
+      <button class="secondary" style="width:100%;margin-top:10px;border-color:#d66;color:#a22"
+        onclick="removeSundayFromCalendar()">Remove</button>
+      <button class="secondary" style="width:100%;margin-top:10px"
+        onclick="replaceSundayFromCalendar()">Change service</button>`;
+  }else{
+    renderSundayChoiceOptions();
+  }
+  modal.classList.add('show');
+}
+function renderSundayChoiceOptions(){
+  const body=document.getElementById('sundayChoiceBody');
+  body.innerHTML=`
+    <div class="subtitle" style="margin-bottom:10px">Choose the service for this Sunday.</div>
+
+    <button class="${pendingSundayService==='foh'?'primary':'secondary'}"
+      style="width:100%;text-align:left;margin-bottom:10px;padding:15px"
+      onclick="chooseSundayService('foh')">
+      🎚️ Sound (FOH)<br>
+      <span style="font-weight:500;opacity:.8">7:00 AM – 12:00 PM</span>
+    </button>
+
+    <button class="${pendingSundayService==='recovery'?'primary':'secondary'}"
+      style="width:100%;text-align:left;margin-bottom:10px;padding:15px"
+      onclick="chooseSundayService('recovery')">
+      🎚️ Recovery<br>
+      <span style="font-weight:500;opacity:.8">3:30 PM – 7:30 PM</span>
+    </button>
+
+    <button class="primary" style="width:100%;margin-top:8px" onclick="validateSundayService()">Validate</button>`;
+}
+function chooseSundayService(type){
+  pendingSundayService=type;
+  renderSundayChoiceOptions();
+}
+function replaceSundayFromCalendar(){
+  ensureRecurringSchedules();
+  if(sundayCalendarPendingDate){
+    delete data.recurringSchedules.edan[sundayCalendarPendingDate];
+  }
+  pendingSundayService=null;
+  renderSundayChoiceOptions();
+}
+function removeSundayFromCalendar(){
+  ensureRecurringSchedules();
+  if(!sundayCalendarPendingDate)return;
+  if(!confirm('Remove this Sunday service?'))return;
+  delete data.recurringSchedules.edan[sundayCalendarPendingDate];
+  save();
+  pendingSundayService=null;
+  const removedDate=sundayCalendarPendingDate;
+  sundayCalendarPendingDate=removedDate;
+  renderSundayChoiceOptions();
+  showCalendarModal();
+  renderEdan();
+}
+function closeSundayChoiceModal(){
+  document.getElementById('sundayChoiceModal').classList.remove('show');
+  pendingSundayService=null;
+  sundayCalendarPendingDate=null;
+}
+
 function addRecurringToMonth(){
   ensureRecurringSchedules();
   const person=calendarState.person;
@@ -667,23 +760,55 @@ function addRecurringToMonth(){
 function addSundayPreset(type){
   ensureRecurringSchedules();
   const y=calendarState.year,m=calendarState.month;
-  const label=type==='foh'?'🎚️ Sound (FOH) · 7:00 AM – 12:00 PM':'🎚️ Recovery · 3:30 PM – 7:30 PM';
+  const label=type==='foh'?'Sound (FOH)':'Recovery';
   const dows=[];
   const days=new Date(y,m+1,0).getDate();
   for(let d=1;d<=days;d++){
     if(new Date(y,m,d).getDay()===0)dows.push(d);
   }
-  const pick=prompt(`Dimanches de ${fmtMonth(y,m)} : ${dows.join(', ')}\nEntre les dates voulues séparées par des virgules (ex. 13,27) :`,'');
+  const pick=prompt(`Sundays in ${fmtMonth(y,m)}: ${dows.join(', ')}
+Enter desired dates separated by commas (example: 13,27):`,'');
   if(pick===null)return;
   const wanted=pick.split(',').map(x=>parseInt(x.trim(),10)).filter(n=>dows.includes(n));
   wanted.forEach(d=>{
     const key=localDateKey(y,m,d);
-    data.recurringSchedules.edan[key]={label,time:type==='foh'?'07:00-12:00':'15:30-19:30',updated_at:new Date().toISOString()};
+    data.recurringSchedules.edan[key]={
+      sunday_service:true,
+      type,
+      label,
+      start_time:type==='foh'?'07:00':'15:30',
+      end_time:type==='foh'?'12:00':'19:30',
+      updated_at:new Date().toISOString()
+    };
   });
-  save(); showCalendarModal();
+  save();
+  showCalendarModal();
+  renderEdan();
+}
+
+
+function migrateLegacySundayServices(){
+  try{
+    ensureRecurringSchedules();
+    if(data.edan && data.edan.sundayServices){
+      Object.entries(data.edan.sundayServices).forEach(([key,svc])=>{
+        if(svc && !data.recurringSchedules.edan[key]){
+          data.recurringSchedules.edan[key]={
+            sunday_service:true,
+            type:svc.type,
+            label:svc.label,
+            start_time:svc.start_time,
+            end_time:svc.end_time,
+            updated_at:svc.updated_at||new Date().toISOString()
+          };
+        }
+      });
+    }
+  }catch(e){console.warn('Sunday migration skipped',e);}
 }
 
 function renderEdan(){
+  migrateLegacySundayServices();
   cleanupExpiredDispatches();
   const d=selectedEdanDispatch();
   const isTrouble=edanSelectedSlot==='trouble';
@@ -702,64 +827,27 @@ function renderEdan(){
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 10px">${dayButtons}</div>
     <button class="${isTrouble?'primary':'secondary'}" style="width:100%;margin-bottom:16px" onclick="selectEdanSlot('trouble')">🚨 Trouble Call</button>`;
 
-  // Sunday is reserved for church sound service, not dispatch import.
+  // Sunday: selection is managed only from the calendar.
   if(edanSelectedSlot===0){
     const service=sundayServiceForSelectedDate();
-    const sundayKey=selectedEdanDateKey();
     detailSubtitle.textContent='Sunday Service';
 
-    // If a saved service exists, show only that confirmed service.
-    if(service){
-      detailContent.innerHTML=`
-        ${tabs}
-        ${calendarBtn}
-        <div class="info"><span>Sunday</span><strong>Sunday</strong></div>
-
-        <div class="info" style="margin-top:16px">
-          <span>Service confirmed</span>
-          <strong>🎚️ ${esc(service.label)}</strong>
-          <div style="margin-top:6px">${service.type==='foh'?'7:00 AM – 12:00 PM':'3:30 PM – 7:30 PM'}</div>
-        </div>
-
-        <button class="secondary" style="width:100%;margin-top:18px;border-color:#d66;color:#a22"
-          onclick="clearSundayService()">Clear</button>`;
-      return;
-    }
-
-    // No saved service yet: show both options, then explicit Validate.
-    const selected=pendingSundayService;
     detailContent.innerHTML=`
       ${tabs}
       ${calendarBtn}
       <div class="info"><span>Sunday</span><strong>Sunday</strong></div>
-      <div class="subtitle" style="margin:16px 0 10px">Choisis le service prévu pour ce dimanche.</div>
 
-      <button class="${selected==='foh'?'primary':'secondary'}"
-        style="width:100%;text-align:left;margin-bottom:10px;padding:15px"
-        onclick="setSundayService('foh')">
-        🎚️ Sound (FOH)<br>
-        <span style="font-weight:500;opacity:.8">7:00 AM – 12:00 PM</span>
-      </button>
-
-      <button class="${selected==='recovery'?'primary':'secondary'}"
-        style="width:100%;text-align:left;margin-bottom:10px;padding:15px"
-        onclick="setSundayService('recovery')">
-        🎚️ Recovery<br>
-        <span style="font-weight:500;opacity:.8">3:30 PM – 7:30 PM</span>
-      </button>
-
-      <button class="primary" style="width:100%;margin-top:8px"
-        onclick="validateSundayService()">Validate</button>
-
-      ${selected?`
-        <div class="info" style="margin-top:14px">
-          <span>Pending selection</span>
-          <strong>🎚️ ${selected==='foh'?'Sound (FOH)':'Recovery'}</strong>
+      ${service?`
+        <div class="info" style="margin-top:16px">
+          <span>Confirmed service</span>
+          <strong>🎚️ ${esc(service.label)}</strong>
+          <div style="margin-top:6px">${service.type==='foh'?'7:00 AM – 12:00 PM':'3:30 PM – 7:30 PM'}</div>
         </div>
-      `:''}
-
-      <button class="secondary" style="width:100%;margin-top:14px;border-color:#d66;color:#a22"
-        onclick="clearSundayService()">Clear</button>`;
+      `:`
+        <div class="subtitle" style="margin-top:16px">
+          Open Calendar and select a Sunday to choose Sound (FOH) or Recovery.
+        </div>
+      `}`;
     return;
   }
 
@@ -1211,6 +1299,17 @@ window.addEventListener('offline',()=>setSyncStatus('error','Hors connexion — 
       <button class="secondary" onclick="addSundayPreset('foh')">🎚️ Add Sound (FOH) Sundays</button>
       <button class="secondary" onclick="addSundayPreset('recovery')">🎚️ Add Recovery Sundays</button>
     </div>
+  </div>
+</div>
+
+
+<div id="sundayChoiceModal" class="modal">
+  <div class="modalbox">
+    <div class="calendar-tools" style="justify-content:space-between;align-items:center">
+      <strong>Sunday Service</strong>
+      <button class="secondary" onclick="closeSundayChoiceModal()">Close</button>
+    </div>
+    <div id="sundayChoiceBody" style="margin-top:12px"></div>
   </div>
 </div>
 

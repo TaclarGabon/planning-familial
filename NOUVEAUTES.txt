@@ -1,13 +1,38 @@
-PLANNING FAMILIAL V5.3.1 — SUNDAY VALIDATION
+PLANNING FAMILIAL V5.3.2 — SUNDAY CALENDAR SYNC
 
-Corrections :
-- L'en-tête du dimanche affiche simplement : Sunday.
-- Cliquer sur Sound (FOH) ou Recovery ne sauvegarde plus immédiatement.
-- Le choix apparaît d'abord comme sélection en attente.
-- Bouton Validate : confirme et sauvegarde dans Firebase.
-- Après validation, seul le service confirmé apparaît dans le profil.
-- Un autre membre de la famille qui ouvre le profil voit donc clairement le service confirmé.
-- Bouton Clear : supprime le service confirmé et réaffiche les deux choix.
-- Horaires :
-  • Sound (FOH) : 7:00 AM – 12:00 PM
-  • Recovery : 3:30 PM – 7:30 PM
+Corrections effectuées :
+
+1. Affichage des jours
+- Dimanche : Sunday
+- Lundi : Monday
+- Mardi : Tuesday
+- Mercredi : Wednesday
+- Jeudi : Thursday
+- Vendredi : Friday
+- Samedi : Saturday
+- Suppression de l'affichage GMT / Pacific Daylight Time / heure complète dans les en-têtes.
+
+2. Dimanche géré depuis le calendrier
+- La page Sunday n'affiche plus directement les deux choix.
+- Elle affiche le service confirmé pour le dimanche sélectionné, s'il existe.
+- Sinon elle indique d'ouvrir Calendar.
+
+3. Dans Calendar
+- Cliquer sur un dimanche d'Edan ouvre :
+  🎚️ Sound (FOH) — 7:00 AM – 12:00 PM
+  🎚️ Recovery — 3:30 PM – 7:30 PM
+- On sélectionne l'un des deux puis on clique Validate.
+- Le service est enregistré et apparaît automatiquement sur la page Sunday.
+
+4. Modification / suppression
+- Si un dimanche a déjà un service confirmé, cliquer sur cette date dans Calendar affiche le service existant.
+- Options : Remove ou Change service.
+- Après suppression, les deux choix réapparaissent.
+- Une nouvelle sélection validée remplace l'ancienne.
+
+5. Synchronisation
+- Le calendrier et la page Sunday utilisent désormais la même donnée Firebase.
+- Une suppression ou modification faite dans le calendrier se reflète automatiquement sur la page Sunday.
+- Une migration récupère aussi les anciennes sélections Sunday si elles existent.
+
+6. Les calendriers d'Otilia et Kayla ainsi que les activités répétitives restent disponibles.
