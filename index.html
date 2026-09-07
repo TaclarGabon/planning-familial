@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3.3 — Sunday Calendar Only</title>
+<title>Planning Familial V5.3.4 — Sunday Exact Sync</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -495,25 +495,32 @@ function renderDetail(){
   if(current==='kayla') renderKayla();
 }
 
+function normalizeSundayEvent(evt){
+  if(!evt) return null;
+  const label=String(evt.label||'').trim();
+  let type=evt.type||'';
+
+  if(!type){
+    if(/^recovery$/i.test(label) || /recovery/i.test(label)) type='recovery';
+    if(/sound\s*\(foh\)|\bfoh\b/i.test(label)) type='foh';
+  }
+
+  if(type!=='foh' && type!=='recovery') return null;
+
+  return {
+    ...evt,
+    sunday_service:true,
+    type,
+    label:type==='foh'?'Sound (FOH)':'Recovery',
+    start_time:type==='foh'?'07:00':'15:30',
+    end_time:type==='foh'?'12:00':'19:30'
+  };
+}
 function sundayServiceForSelectedDate(){
   ensureRecurringSchedules();
-  const events=data.recurringSchedules.edan||{};
-  const todayKey=today();
-
-  const upcoming=Object.entries(events)
-    .filter(([key,evt])=>{
-      if(!evt || !evt.sunday_service || evt.source!=='calendar') return false;
-      const parts=key.split('-').map(Number);
-      if(parts.length!==3 || parts.some(Number.isNaN)) return false;
-      const dt=new Date(parts[0],parts[1]-1,parts[2],12,0,0);
-      return dt.getDay()===0 && key>=todayKey;
-    })
-    .sort((a,b)=>a[0].localeCompare(b[0]));
-
-  if(upcoming.length){
-    return {...upcoming[0][1], date:upcoming[0][0]};
-  }
-  return null;
+  const key=selectedEdanDateKey();
+  if(!key) return null;
+  return normalizeSundayEvent((data.recurringSchedules.edan||{})[key]);
 }
 function setSundayService(type){
   pendingSundayService=type;
@@ -525,14 +532,22 @@ function validateSundayService(){
     return;
   }
   ensureRecurringSchedules();
+
   const type=pendingSundayService;
-  const evt = type==='foh'
-    ? {sunday_service:true,source:'calendar',type:'foh',label:'Sound (FOH)',start_time:'07:00',end_time:'12:00',updated_at:new Date().toISOString()}
-    : {sunday_service:true,source:'calendar',type:'recovery',label:'Recovery',start_time:'15:30',end_time:'19:30',updated_at:new Date().toISOString()};
-  data.recurringSchedules.edan[sundayCalendarPendingDate]=evt;
+  data.recurringSchedules.edan[sundayCalendarPendingDate]={
+    sunday_service:true,
+    source:'calendar',
+    type,
+    label:type==='foh'?'Sound (FOH)':'Recovery',
+    start_time:type==='foh'?'07:00':'15:30',
+    end_time:type==='foh'?'12:00':'19:30',
+    updated_at:new Date().toISOString()
+  };
+
   pendingSundayService=null;
   sundayCalendarPendingDate=null;
   save();
+  edanSelectedSlot=0;
   closeSundayChoiceModal();
   showCalendarModal();
   renderEdan();
@@ -596,7 +611,10 @@ function showCalendarModal(){
   const evts=calendarEventsFor(person);
   for(let d=1;d<=days;d++){
     const key=localDateKey(y,m,d);
-    const evt=evts[key];
+    let evt=evts[key];
+    if(person==='edan' && new Date(y,m,d,12,0,0).getDay()===0){
+      evt=normalizeSundayEvent(evt);
+    }
     html+=`<div class="calendar-day ${evt?'has-event':''}" onclick="editCalendarDate('${key}')">
       <span class="num">${d}</span>
       ${evt?`<span class="evt">${esc(evt.label||'Scheduled')}</span>`:''}
@@ -672,7 +690,7 @@ function openSundayChoiceModal(key){
   ensureRecurringSchedules();
   sundayCalendarPendingDate=key;
   pendingSundayService=null;
-  const existing=data.recurringSchedules.edan[key];
+  const existing=normalizeSundayEvent(data.recurringSchedules.edan[key]);
   const modal=document.getElementById('sundayChoiceModal');
   const body=document.getElementById('sundayChoiceBody');
 
@@ -730,11 +748,11 @@ function removeSundayFromCalendar(){
   ensureRecurringSchedules();
   if(!sundayCalendarPendingDate)return;
   if(!confirm('Remove this Sunday service?'))return;
+
   delete data.recurringSchedules.edan[sundayCalendarPendingDate];
   save();
+
   pendingSundayService=null;
-  const removedDate=sundayCalendarPendingDate;
-  sundayCalendarPendingDate=removedDate;
   renderSundayChoiceOptions();
   showCalendarModal();
   renderEdan();

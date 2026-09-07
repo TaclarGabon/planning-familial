@@ -1,10 +1,10 @@
-PLANNING FAMILIAL V5.3.3 — SUNDAY CALENDAR ONLY
+PLANNING FAMILIAL V5.3.4 — SUNDAY EXACT SYNC
 
-Correction principale :
-- Suppression de la migration des anciennes sélections Sunday.
-- Les anciens choix Recovery/FOH enregistrés dans l'ancien système ne sont plus repris automatiquement.
-- La page Sunday ne lit désormais QUE les services validés depuis Calendar.
-- Si aucun service n'a été validé dans Calendar, rien n'apparaît sous Sunday.
-- Si plusieurs dimanches sont planifiés, la page Sunday affiche le prochain service confirmé à venir.
-- Les choix du calendrier sont marqués comme provenant de Calendar afin d'éviter les anciennes données parasites.
-- Les jours Monday à Saturday affichent seulement le nom du jour, sans GMT, Pacific Daylight Time ni date longue.
+Correction :
+- Le calendrier et la page Sunday lisent maintenant exactement la même entrée pour la même date.
+- Si le calendrier du dimanche 13 contient Recovery, Sunday affiche Recovery.
+- Si le calendrier du dimanche 13 contient Sound (FOH), Sunday affiche Sound (FOH).
+- Si le dimanche 13 est supprimé du calendrier, Sunday redevient vide.
+- Les anciennes entrées Recovery/FOH sont reconnues même si elles proviennent d'une version antérieure.
+- Après Validate, l'affichage Sunday est recalculé immédiatement.
+- Après Remove, l'affichage Sunday est effacé immédiatement.
