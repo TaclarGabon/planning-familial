@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3.2 — Sunday Calendar Sync</title>
+<title>Planning Familial V5.3.3 — Sunday Calendar Only</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -497,9 +497,23 @@ function renderDetail(){
 
 function sundayServiceForSelectedDate(){
   ensureRecurringSchedules();
-  const evt=data.recurringSchedules.edan[selectedEdanDateKey()];
-  if(!evt || !evt.sunday_service) return null;
-  return evt;
+  const events=data.recurringSchedules.edan||{};
+  const todayKey=today();
+
+  const upcoming=Object.entries(events)
+    .filter(([key,evt])=>{
+      if(!evt || !evt.sunday_service || evt.source!=='calendar') return false;
+      const parts=key.split('-').map(Number);
+      if(parts.length!==3 || parts.some(Number.isNaN)) return false;
+      const dt=new Date(parts[0],parts[1]-1,parts[2],12,0,0);
+      return dt.getDay()===0 && key>=todayKey;
+    })
+    .sort((a,b)=>a[0].localeCompare(b[0]));
+
+  if(upcoming.length){
+    return {...upcoming[0][1], date:upcoming[0][0]};
+  }
+  return null;
 }
 function setSundayService(type){
   pendingSundayService=type;
@@ -513,8 +527,8 @@ function validateSundayService(){
   ensureRecurringSchedules();
   const type=pendingSundayService;
   const evt = type==='foh'
-    ? {sunday_service:true,type:'foh',label:'Sound (FOH)',start_time:'07:00',end_time:'12:00',updated_at:new Date().toISOString()}
-    : {sunday_service:true,type:'recovery',label:'Recovery',start_time:'15:30',end_time:'19:30',updated_at:new Date().toISOString()};
+    ? {sunday_service:true,source:'calendar',type:'foh',label:'Sound (FOH)',start_time:'07:00',end_time:'12:00',updated_at:new Date().toISOString()}
+    : {sunday_service:true,source:'calendar',type:'recovery',label:'Recovery',start_time:'15:30',end_time:'19:30',updated_at:new Date().toISOString()};
   data.recurringSchedules.edan[sundayCalendarPendingDate]=evt;
   pendingSundayService=null;
   sundayCalendarPendingDate=null;
@@ -774,6 +788,7 @@ Enter desired dates separated by commas (example: 13,27):`,'');
     const key=localDateKey(y,m,d);
     data.recurringSchedules.edan[key]={
       sunday_service:true,
+      source:'calendar',
       type,
       label,
       start_time:type==='foh'?'07:00':'15:30',
@@ -787,28 +802,8 @@ Enter desired dates separated by commas (example: 13,27):`,'');
 }
 
 
-function migrateLegacySundayServices(){
-  try{
-    ensureRecurringSchedules();
-    if(data.edan && data.edan.sundayServices){
-      Object.entries(data.edan.sundayServices).forEach(([key,svc])=>{
-        if(svc && !data.recurringSchedules.edan[key]){
-          data.recurringSchedules.edan[key]={
-            sunday_service:true,
-            type:svc.type,
-            label:svc.label,
-            start_time:svc.start_time,
-            end_time:svc.end_time,
-            updated_at:svc.updated_at||new Date().toISOString()
-          };
-        }
-      });
-    }
-  }catch(e){console.warn('Sunday migration skipped',e);}
-}
 
 function renderEdan(){
-  migrateLegacySundayServices();
   cleanupExpiredDispatches();
   const d=selectedEdanDispatch();
   const isTrouble=edanSelectedSlot==='trouble';
@@ -843,18 +838,14 @@ function renderEdan(){
           <strong>🎚️ ${esc(service.label)}</strong>
           <div style="margin-top:6px">${service.type==='foh'?'7:00 AM – 12:00 PM':'3:30 PM – 7:30 PM'}</div>
         </div>
-      `:`
-        <div class="subtitle" style="margin-top:16px">
-          Open Calendar and select a Sunday to choose Sound (FOH) or Recovery.
-        </div>
-      `}`;
+      `:''}`;
     return;
   }
 
   if(!d){
     detailContent.innerHTML=`
       ${tabs}
-      <div class="info"><span>${label}</span><strong>${isTrouble?'Intervention urgente':esc(formatWorkDate(key))}</strong></div>
+      <div class="info"><span>${label}</span><strong>${isTrouble?'Trouble Call':esc(edanSlotEnglishName(edanSelectedSlot))}</strong></div>
       <div class="subtitle" style="margin:16px 0">Aucun dispatch enregistré.</div>
       <div class="toolbar"><button class="primary" onclick="openDispatch()">Importer le dispatch</button></div>
       <button class="secondary" style="width:100%;margin-top:18px" onclick="clearSelectedDispatch()">Effacer</button>`;
@@ -867,7 +858,7 @@ function renderEdan(){
       <button class="primary" onclick="openDispatch()">Importer ou remplacer le dispatch</button>
       ${d.address?'<button class="secondary" onclick="openMap()">📍 Ouvrir dans Maps</button>':''}
     </div>
-    <div class="info"><span>${label} · Date de travail</span><strong>${esc(formatWorkDate(d.date||key))}</strong></div>
+    <div class="info"><span>${label}</span><strong>${esc(edanSlotEnglishName(edanSelectedSlot))}</strong></div>
     <div class="info"><span>Entreprise cliente</span><strong>${esc(d.company||'—')}</strong></div>
     <div class="info"><span>Adresse du chantier</span><strong>${esc(cleanDispatchAddress(d.address))}</strong></div>
     <div class="info"><span>Heure de début</span><strong>${esc(d.start_time||'—')}</strong></div>

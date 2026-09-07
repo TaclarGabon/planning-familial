@@ -1,38 +1,10 @@
-PLANNING FAMILIAL V5.3.2 — SUNDAY CALENDAR SYNC
+PLANNING FAMILIAL V5.3.3 — SUNDAY CALENDAR ONLY
 
-Corrections effectuées :
-
-1. Affichage des jours
-- Dimanche : Sunday
-- Lundi : Monday
-- Mardi : Tuesday
-- Mercredi : Wednesday
-- Jeudi : Thursday
-- Vendredi : Friday
-- Samedi : Saturday
-- Suppression de l'affichage GMT / Pacific Daylight Time / heure complète dans les en-têtes.
-
-2. Dimanche géré depuis le calendrier
-- La page Sunday n'affiche plus directement les deux choix.
-- Elle affiche le service confirmé pour le dimanche sélectionné, s'il existe.
-- Sinon elle indique d'ouvrir Calendar.
-
-3. Dans Calendar
-- Cliquer sur un dimanche d'Edan ouvre :
-  🎚️ Sound (FOH) — 7:00 AM – 12:00 PM
-  🎚️ Recovery — 3:30 PM – 7:30 PM
-- On sélectionne l'un des deux puis on clique Validate.
-- Le service est enregistré et apparaît automatiquement sur la page Sunday.
-
-4. Modification / suppression
-- Si un dimanche a déjà un service confirmé, cliquer sur cette date dans Calendar affiche le service existant.
-- Options : Remove ou Change service.
-- Après suppression, les deux choix réapparaissent.
-- Une nouvelle sélection validée remplace l'ancienne.
-
-5. Synchronisation
-- Le calendrier et la page Sunday utilisent désormais la même donnée Firebase.
-- Une suppression ou modification faite dans le calendrier se reflète automatiquement sur la page Sunday.
-- Une migration récupère aussi les anciennes sélections Sunday si elles existent.
-
-6. Les calendriers d'Otilia et Kayla ainsi que les activités répétitives restent disponibles.
+Correction principale :
+- Suppression de la migration des anciennes sélections Sunday.
+- Les anciens choix Recovery/FOH enregistrés dans l'ancien système ne sont plus repris automatiquement.
+- La page Sunday ne lit désormais QUE les services validés depuis Calendar.
+- Si aucun service n'a été validé dans Calendar, rien n'apparaît sous Sunday.
+- Si plusieurs dimanches sont planifiés, la page Sunday affiche le prochain service confirmé à venir.
+- Les choix du calendrier sont marqués comme provenant de Calendar afin d'éviter les anciennes données parasites.
+- Les jours Monday à Saturday affichent seulement le nom du jour, sans GMT, Pacific Daylight Time ni date longue.
