@@ -1,27 +1,34 @@
-PLANNING FAMILIAL V5.3.5 — CHURCH SCHEDULE REBUILD
+PLANNING FAMILIAL V5.3.6 — KAYLA WEEKLY SCHEDULE
 
-Cette version reconstruit complètement la gestion du dimanche.
+Kayla — programme récurrent officiel :
 
-Cause corrigée :
-- Les anciennes versions mélangeaient les données Sunday avec recurringSchedules et d'anciens essais.
-- Un ancien Recovery pouvait donc continuer à apparaître même après une modification dans Calendar.
+SCHOOL
+- Monday to Friday
+- 8:50 AM – 2:57 PM
 
-Nouvelle architecture :
-- Edan possède maintenant une seule base dédiée : edan.churchSchedule.
-- Calendar lit edan.churchSchedule.
-- Validate écrit dans edan.churchSchedule.
-- Remove supprime dans edan.churchSchedule.
-- La page Sunday lit edan.churchSchedule.
-- Il n'y a plus de deuxième source Sunday.
+GYMNASTICS — Xcel Group 4, Coach Myla
+- Sunday: 9:00 AM – 12:00 PM
+- Monday: 5:30 PM – 8:30 PM
+- Thursday: 5:30 PM – 8:30 PM
 
-Important :
-- Au premier lancement de V5.3.5, les anciennes sélections Sunday expérimentales sont volontairement effacées UNE SEULE FOIS.
-- La page Sunday doit donc être vide au départ.
-- Ensuite :
-  1. Calendar
-  2. cliquer sur un dimanche
-  3. choisir Sound (FOH) ou Recovery
-  4. Validate
-  5. fermer Calendar
-  6. le service confirmé apparaît sur Sunday.
-- Une modification ou suppression depuis Calendar met à jour la page Sunday avec la même donnée.
+MATH TUTORING
+- Wednesday
+- Friday
+- No fixed time
+- Time often starts around 4:30 PM or 5:00 PM
+- Exact time can be added on the specific date in Calendar.
+
+NEW SELF-SERVICE FEATURE
+- Kayla now has a “Weekly Schedule” button.
+- Edan/Otilia can edit recurring activities directly in the app.
+- Choose one or several days.
+- Set start/end times.
+- Edit or delete a recurring activity.
+- Add a new recurring activity without needing a new app version.
+
+CALENDAR
+- Kayla’s recurring weekly activities appear automatically on the calendar.
+- A specific date can still receive a one-off activity or exact time.
+- Old manually-entered duplicate Gymnastics/School/Math recurring entries are removed once when this version starts.
+
+Edan Sunday Church Schedule from V5.3.5 is preserved.
