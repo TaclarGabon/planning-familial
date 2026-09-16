@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3.7 — Kayla Schedule Fix</title>
+<title>Planning Familial V5.3.8 — Dynamic Status Fix</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -515,29 +515,61 @@ function cityFromDispatch(d){
   const cities=['West Vancouver','North Vancouver','Port Moody','Maple Ridge','East Vancouver','Richmond','Surrey','Langley','Delta','Coquitlam','Burnaby','Vancouver'];
   return cities.find(c=>new RegExp('\\b'+c.replace(' ','\\s+')+'\\b','i').test(text))||'';
 }
+function todayEdanDispatch(){
+  const dispatches=(data.edan&&data.edan.dispatches)||{};
+  const key=today();
+  if(dispatches[key]) return dispatches[key];
+  const vals=Object.values(dispatches).filter(Boolean);
+  return vals.find(d=>String(d.date||'')===key)||null;
+}
 function edanCurrentStatus(){
-  const d=(data.edan.dispatches||{})[today()];
+  const d=todayEdanDispatch();
   if(!d)return 'À la maison';
-  const now=minutesNow(), start=timeToMinutes(d.start_time), eta=timeToMinutes(d.eta);
-  if(start!==null && now<start)return 'À la maison';
+  const now=minutesNow();
+  const start=timeToMinutes(d.start_time||d.start||d.time);
+  const eta=timeToMinutes(d.eta||d.end_time||d.end);
+  if(start===null || now<start)return 'À la maison';
   if(eta!==null && now>=eta)return 'À la maison';
-  if(start===null)return 'À la maison';
   const city=cityFromDispatch(d);
   return city?'Travail à '+city:'Au travail';
 }
 function otiliaCurrentStatus(){
   const n=new Date(), wd=n.getDay(), now=minutesNow(), day=today();
   if((data.otilia.exceptions||[]).some(x=>x.date===day))return 'À la maison';
+  // Mon–Thu 06:00–18:00 (lunch break does not change the work status).
   if(wd>=1&&wd<=4 && now>=360&&now<1080)return 'Travail à la maison';
+  // Friday 06:00–12:00.
   if(wd===5 && now>=360&&now<720)return 'Travail à la maison';
   return 'À la maison';
 }
 function kaylaCurrentStatus(){
   const n=new Date(), wd=n.getDay(), now=minutesNow(), day=today();
   const punctual=(data.kayla.activities||[]).filter(a=>isActivityForDate(a,day));
-  for(const a of punctual){const st=timeToMinutes(a.start),en=timeToMinutes(a.end);if(st!==null&&now>=st&&(en===null||now<en))return a.label||a.name||'Activité';}
-  const weekly=(data.kaylaWeeklySchedule||[]).filter(a=>a.active!==false&&(a.days||[]).includes(wd));
-  for(const a of weekly){const st=timeToMinutes(a.start),en=timeToMinutes(a.end);if(st!==null&&en!==null&&now>=st&&now<en){const l=String(a.label||'').toLowerCase();if(l.includes('school'))return 'À l’école';if(l.includes('gym'))return 'À la gym';return a.label;}}
+  for(const a of punctual){
+    const st=timeToMinutes(a.start),en=timeToMinutes(a.end);
+    if(st!==null&&now>=st&&(en===null||now<en)){
+      const l=String(a.label||a.name||'').toLowerCase();
+      if(l.includes('gym'))return 'À la gym';
+      if(l.includes('school')||l.includes('école'))return 'À l’école';
+      return a.label||a.name||'Activité';
+    }
+  }
+  // Fixed school timetable is the reliable baseline, even if an older Firebase
+  // weekly object is still present on the device.
+  if(wd>=1&&wd<=5 && now>=530&&now<897)return 'À l’école'; // 08:50–14:57
+  if(wd===0 && now>=540&&now<720)return 'À la gym';          // Sun 09:00–12:00
+  if((wd===1||wd===4) && now>=1050&&now<1230)return 'À la gym'; // Mon/Thu 17:30–20:30
+  ensureKaylaWeeklySchedule();
+  const weekly=(data.kaylaWeeklySchedule||[]).filter(a=>a.active!==false&&(a.days||[]).map(Number).includes(wd));
+  for(const a of weekly){
+    const st=timeToMinutes(a.start),en=timeToMinutes(a.end);
+    if(st!==null&&en!==null&&now>=st&&now<en){
+      const l=String(a.label||'').toLowerCase();
+      if(l.includes('school')||l.includes('école'))return 'À l’école';
+      if(l.includes('gym'))return 'À la gym';
+      return a.label||'Activité';
+    }
+  }
   return 'À la maison';
 }
 function refreshBadges(){
@@ -1499,6 +1531,7 @@ function deleteKayla(i){data.kayla.activities.splice(i,1);save()}
 function closeModal(id){document.getElementById(id).classList.remove('show')}
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')}));
 refreshBadges();
+setInterval(refreshBadges,60000);
 
 let unsubscribePlanning=null;
 
