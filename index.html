@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3.8 — Kayla Today Fix</title>
+<title>Planning Familial V5.3.7 — Kayla Schedule Fix</title>
 <style>
 :root {
   --bg:#eef5f7; --card:#fff; --text:#183247; --muted:#6c7f90;
@@ -655,10 +655,6 @@ let editingWeeklyId=null;
 
 function ensureKaylaWeeklySchedule(){
   data.kaylaWeeklySchedule=data.kaylaWeeklySchedule||[];
-  data.kaylaWeeklySchedule=data.kaylaWeeklySchedule.map(item=>({
-    ...item,
-    days:Array.isArray(item.days)?item.days.map(Number):[]
-  }));
   if(!data.kaylaWeeklySchedule.length){
     data.kaylaWeeklySchedule=[
       {id:'school',label:'School',days:[1,2,3,4,5],start:'08:50',end:'14:57',note:'Monday to Friday',active:true},
@@ -670,11 +666,7 @@ function ensureKaylaWeeklySchedule(){
 }
 function kaylaWeeklyForDow(dow){
   ensureKaylaWeeklySchedule();
-  const wanted=Number(dow);
-  return data.kaylaWeeklySchedule.filter(x=>{
-    if(!x || x.active===false || !Array.isArray(x.days)) return false;
-    return x.days.map(Number).includes(wanted);
-  });
+  return data.kaylaWeeklySchedule.filter(x=>x && x.active!==false && Array.isArray(x.days) && x.days.includes(dow));
 }
 function fmtTime12(value){
   if(!value)return '';
@@ -820,7 +812,7 @@ function calendarEventsFor(person){
   ensureRecurringSchedules();
   return data.recurringSchedules[person]||{};
 }
-function calendarDateKey(y,m,d){
+function localDateKey(y,m,d){
   return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 }
 function fmtMonth(y,m){
@@ -842,7 +834,7 @@ function showCalendarModal(){
   for(let i=0;i<first.getDay();i++)html+=`<div class="calendar-day empty"></div>`;
   const evts=calendarEventsFor(person);
   for(let d=1;d<=days;d++){
-    const key=calendarDateKey(y,m,d);
+    const key=localDateKey(y,m,d);
     let evt=evts[key];
     const cellDate=new Date(y,m,d,12,0,0);
     if(person==='edan' && cellDate.getDay()===0){
@@ -1023,7 +1015,7 @@ function addRecurringToMonth(){
     if(dt.getDay()===dow){
       if(person==='edan' && dow===0){ occurrence++; continue; }
       if(occurrence%every===0){
-        const key=calendarDateKey(y,m,d);
+        const key=localDateKey(y,m,d);
         data.recurringSchedules[person][key]={label,time,updated_at:new Date().toISOString()};
         hit++;
       }
@@ -1046,7 +1038,7 @@ function addSundayPreset(type){
   const wanted=pick.split(',').map(x=>parseInt(x.trim(),10)).filter(n=>dows.includes(n));
   data.edan.churchSchedule=data.edan.churchSchedule||{};
   wanted.forEach(d=>{
-    const key=calendarDateKey(y,m,d);
+    const key=localDateKey(y,m,d);
     data.edan.churchSchedule[key]={
       type,
       label:type==='foh'?'Sound (FOH)':'Recovery',
