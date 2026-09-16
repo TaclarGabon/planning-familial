@@ -498,7 +498,7 @@ function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt
 function openPerson(name){
   current=name;home.classList.remove('active');detail.classList.add('active');renderDetail();
 }
-function backHome(){detail.classList.remove('active');home.classList.add('active');}
+function backHome(){detail.classList.remove('active');home.classList.add('active');refreshBadges();}
 function minutesNow(){const n=new Date();return n.getHours()*60+n.getMinutes();}
 function timeToMinutes(value){
   if(!value)return null;
@@ -522,9 +522,20 @@ function cityFromDispatch(d){
 function todayEdanDispatch(){
   const dispatches=(data.edan&&data.edan.dispatches)||{};
   const key=today();
+  // Primary source: the dispatch stored under today's local date.
   if(dispatches[key]) return dispatches[key];
   const vals=Object.values(dispatches).filter(Boolean);
-  return vals.find(d=>String(d.date||'')===key)||null;
+  const exact=vals.find(d=>String(d.date||'')===key);
+  if(exact)return exact;
+  // Safety fallback for older Firebase records: if a dispatch was imported for
+  // the current weekday but its storage key is legacy/misaligned, use it only
+  // when its own date resolves to today's weekday and it is within 48 hours.
+  const wd=new Date().getDay();
+  return vals.find(d=>{
+    if(!d.date)return false;
+    const dt=dateFromKey(d.date);
+    return dt.getDay()===wd && Math.abs(Date.now()-dt.getTime())<48*3600000;
+  })||null;
 }
 function edanCurrentStatus(){
   const d=todayEdanDispatch();
@@ -533,7 +544,11 @@ function edanCurrentStatus(){
   const start=timeToMinutes(d.start_time||d.start||d.time);
   const eta=timeToMinutes(d.eta||d.end_time||d.end);
   if(start===null || now<start)return 'À la maison';
-  if(eta!==null && now>=eta)return 'À la maison';
+  if(eta!==null){
+    if(now>=eta)return 'À la maison';
+    // As soon as an ETA is set/confirmed, Edan is considered to have left the work site.
+    return 'En chemin pour la maison';
+  }
   const city=cityFromDispatch(d);
   return city?'Travail à '+city:'Au travail';
 }
@@ -1192,7 +1207,7 @@ function renderEdan(){
     <div class="info"><span>Entreprise cliente</span><strong>${esc(d.company||'—')}</strong></div>
     <div class="info"><span>Adresse du chantier</span><strong>${esc(cleanDispatchAddress(d.address))}</strong></div>
     <div class="info"><span>Ville pour le statut d’accueil</span><strong>${esc(cityFromDispatch(d)||'Non détectée')}</strong></div>
-    <div class="eta-custom"><input id="dispatchCity" type="text" value="${esc(cityFromDispatch(d))}" placeholder="Ex. Surrey"><button class="secondary" onclick="saveDispatchCity()">Confirmer la ville</button></div>
+    <div class="eta-custom"><input id="dispatchCity" type="text" value="${esc(cityFromDispatch(d))}" placeholder="Ex. Surrey"><button id="confirmCityBtn" class="secondary" onclick="saveDispatchCity()">${d.city_confirmed?'✓ Confirmé':'Confirmer la ville'}</button></div>
     <div class="info"><span>Heure de début</span><strong>${esc(d.start_time||'—')}</strong></div>
     <div class="info"><span>Type de mission</span><strong>${esc(d.role||'—')}</strong></div>
     <div class="info"><span>Camion / Truck</span><strong>${esc(d.truck||'Aucun')}</strong></div>
@@ -1215,7 +1230,15 @@ function saveDispatchCity(){
   const value=(document.getElementById('dispatchCity')?.value||'').trim();
   if(!value){alert('Entre ou confirme une ville.');return;}
   d.city=value;
+  d.city_confirmed=true;
   save();
+  // Update the home badge immediately from this exact confirmed dispatch.
+  if(window.edanBadge){
+    const now=minutesNow();
+    const start=timeToMinutes(d.start_time||d.start||d.time);
+    const eta=timeToMinutes(d.eta||d.end_time||d.end);
+    if(start!==null && now>=start && (eta===null||now<eta)) edanBadge.textContent='Travail à '+value;
+  }
   refreshBadges();
   renderDetail();
 }
@@ -1340,6 +1363,7 @@ function parseDispatchMessage(t){
     company:companyMatch?companyMatch[1].trim():'',
     address,
     city: detectCity(clean),
+    city_confirmed:false,
     role,
     truck,
     supervisor,
