@@ -542,15 +542,17 @@ function edanCurrentStatus(){
   if(!d)return 'À la maison';
   const now=minutesNow();
   const start=timeToMinutes(d.start_time||d.start||d.time);
-  const eta=timeToMinutes(d.eta||d.end_time||d.end);
+  const eta=timeToMinutes(d.eta);
+
+  // The dispatch itself is the single source of truth for Edan's live status.
+  // This avoids depending on the selected tab or on parsing the full address again.
   if(start===null || now<start)return 'À la maison';
   if(eta!==null){
     if(now>=eta)return 'À la maison';
-    // As soon as an ETA is set/confirmed, Edan is considered to have left the work site.
     return 'En chemin pour la maison';
   }
-  const city=cityFromDispatch(d);
-  return city?'Travail à '+city:'Au travail';
+  const city=String(d.city||'').trim() || detectCity(d.raw_message||d.address||'');
+  return city ? 'Travail à '+city : 'Au travail';
 }
 function otiliaCurrentStatus(){
   const n=new Date(), wd=n.getDay(), now=minutesNow(), day=today();
@@ -1214,7 +1216,7 @@ function renderEdan(){
     <div class="info"><span>Superviseur</span><strong>${esc(d.supervisor||'—')}</strong></div>
     <div class="info"><span>Téléphone</span><strong>${esc(d.supervisor_phone||'—')}</strong></div>
     <div class="info"><span>PO</span><strong>${esc(d.po||'—')}</strong></div>
-    <div class="info"><span>ETA maison</span><strong>${esc(d.eta||'Non renseignée')}</strong></div>
+    <div class="info"><span>ETA maison</span><strong>${esc(d.eta||'Non renseignée')}${d.eta_confirmed?' · ✓ Confirmé':''}</strong></div>
     <div class="eta-row">
       <button class="small" onclick="setETA(30)">+30 min</button>
       <button class="small" onclick="setETA(45)">+45 min</button>
@@ -1231,14 +1233,9 @@ function saveDispatchCity(){
   if(!value){alert('Entre ou confirme une ville.');return;}
   d.city=value;
   d.city_confirmed=true;
+  d.city_confirmed_at=new Date().toISOString();
   save();
-  // Update the home badge immediately from this exact confirmed dispatch.
-  if(window.edanBadge){
-    const now=minutesNow();
-    const start=timeToMinutes(d.start_time||d.start||d.time);
-    const eta=timeToMinutes(d.eta||d.end_time||d.end);
-    if(start!==null && now>=start && (eta===null||now<eta)) edanBadge.textContent='Travail à '+value;
-  }
+  // Immediate visual feedback; renderDetail() changes the button to ✓ Confirmé.
   refreshBadges();
   renderDetail();
 }
@@ -1448,14 +1445,23 @@ function setETA(m){
   const d=selectedEdanDispatch();
   if(!d)return;
   const eta=new Date(Date.now()+m*60000);
-  d.eta=eta.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+  d.eta=String(eta.getHours()).padStart(2,'0')+':'+String(eta.getMinutes()).padStart(2,'0');
+  d.eta_confirmed=true;
+  d.eta_confirmed_at=new Date().toISOString();
   save();
+  refreshBadges();
+  renderDetail();
 }
 function setCustomETA(){
   const d=selectedEdanDispatch();
-  if(!d || !customEta.value)return;
-  d.eta=customEta.value;
+  const input=document.getElementById('customEta');
+  if(!d || !input || !input.value)return;
+  d.eta=input.value;
+  d.eta_confirmed=true;
+  d.eta_confirmed_at=new Date().toISOString();
   save();
+  refreshBadges();
+  renderDetail();
 }
 function openOtilia(){otiliaDate.value=today();otiliaNote.value='';otiliaModal.classList.add('show')}
 function saveOtilia(){data.otilia.exceptions.push({status:otiliaStatus.value,date:otiliaDate.value,note:otiliaNote.value});closeModal('otiliaModal');save()}
