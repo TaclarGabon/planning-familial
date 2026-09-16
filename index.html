@@ -510,10 +510,14 @@ function timeToMinutes(value){
   if(ap==='pm'&&h<12)h+=12;if(ap==='am'&&h===12)h=0;
   return h*60+min;
 }
+function detectCity(text){
+  text=String(text||'');
+  const cities=['White Rock','West Vancouver','North Vancouver','Port Moody','Maple Ridge','East Vancouver','Richmond','Surrey','Langley','Delta','Coquitlam','Burnaby','Vancouver'];
+  return cities.find(c=>new RegExp('\\b'+c.replace(/ /g,'\\s+')+'\\b','i').test(text))||'';
+}
 function cityFromDispatch(d){
-  const text=String((d&&d.address)||'');
-  const cities=['West Vancouver','North Vancouver','Port Moody','Maple Ridge','East Vancouver','Richmond','Surrey','Langley','Delta','Coquitlam','Burnaby','Vancouver'];
-  return cities.find(c=>new RegExp('\\b'+c.replace(' ','\\s+')+'\\b','i').test(text))||'';
+  if(!d)return '';
+  return String(d.city||'').trim() || detectCity([d.address,d.raw_message,d.company].filter(Boolean).join(' '));
 }
 function todayEdanDispatch(){
   const dispatches=(data.edan&&data.edan.dispatches)||{};
@@ -1187,6 +1191,8 @@ function renderEdan(){
     <div class="info"><span>${label}</span><strong>${esc(edanSlotEnglishName(edanSelectedSlot))}</strong></div>
     <div class="info"><span>Entreprise cliente</span><strong>${esc(d.company||'—')}</strong></div>
     <div class="info"><span>Adresse du chantier</span><strong>${esc(cleanDispatchAddress(d.address))}</strong></div>
+    <div class="info"><span>Ville pour le statut d’accueil</span><strong>${esc(cityFromDispatch(d)||'Non détectée')}</strong></div>
+    <div class="eta-custom"><input id="dispatchCity" type="text" value="${esc(cityFromDispatch(d))}" placeholder="Ex. Surrey"><button class="secondary" onclick="saveDispatchCity()">Confirmer la ville</button></div>
     <div class="info"><span>Heure de début</span><strong>${esc(d.start_time||'—')}</strong></div>
     <div class="info"><span>Type de mission</span><strong>${esc(d.role||'—')}</strong></div>
     <div class="info"><span>Camion / Truck</span><strong>${esc(d.truck||'Aucun')}</strong></div>
@@ -1202,6 +1208,18 @@ function renderEdan(){
     <div class="eta-custom"><input id="customEta" type="time"><button class="secondary" onclick="setCustomETA()">Définir ETA</button></div>
     <button class="secondary" style="width:100%;margin-top:22px;border-color:#d66;color:#a22" onclick="clearSelectedDispatch()">Effacer ce dispatch</button>`;
 }
+
+function saveDispatchCity(){
+  const d=selectedEdanDispatch();
+  if(!d)return;
+  const value=(document.getElementById('dispatchCity')?.value||'').trim();
+  if(!value){alert('Entre ou confirme une ville.');return;}
+  d.city=value;
+  save();
+  refreshBadges();
+  renderDetail();
+}
+
 function renderOtilia(){
   const day=today();
   const weekday=new Date(day+'T12:00:00').getDay();
@@ -1321,6 +1339,7 @@ function parseDispatchMessage(t){
     start_time:start,
     company:companyMatch?companyMatch[1].trim():'',
     address,
+    city: detectCity(clean),
     role,
     truck,
     supervisor,
