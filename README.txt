@@ -1,11 +1,14 @@
-PLANNING FAMILIAL V5.8 — RAPPELS DEMAIN UNIFIÉS
 
-Corrections :
-- Les rappels « demain » utilisent maintenant une seule logique pour Edan, Otilia et Kayla.
-- Toute activité ajoutée au calendrier d'un profil remonte dans :
-  1) l'accueil familial,
-  2) le profil concerné,
-  3) la notification téléphone si les notifications sont autorisées.
-- Otilia : les activités ponctuelles (ex. Coiffeur dimanche 13:30) sont prises en compte qu'elles soient ajoutées depuis son calendrier ou son formulaire d'activité.
-- La synchronisation Firebase initialise désormais aussi recurringSchedules pour éviter la perte des activités calendrier lors d'une recharge/synchronisation.
-- Les doublons sont filtrés de la même manière pour tous les profils.
+
+V5.7 — CORRECTION DATE DU JOUR + RAPPELS J-1
+Correction importante:
+- Deux fonctions portaient le même nom `localDateKey` dans V5.6.
+- La deuxième écrasait la première et cassait la détection de "aujourd'hui" et "demain".
+- Cela expliquait la case Date vide et l'absence de rappel J-1.
+
+Ajouts:
+- Date du jour affichée sur l'accueil.
+- Date du jour clairement entourée/surlignée dans chaque calendrier.
+- Calendrier indique aussi la date de demain.
+- Rappel J-1 utilise maintenant la vraie date locale de l'iPhone.
+- Si aucun événement n'est prévu demain, l'accueil l'indique explicitement.
