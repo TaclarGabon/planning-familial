@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Planning familial - Import calendrier papier</title>
+<style>
+:root {
+  --bg:#eef8f7; --card:#fff; --ink:#17324a; --muted:#71869a; --line:#d7e4ea;
+  --accent:#168b7e; --warn:#a66b00; --danger:#a62b2b; --soft:#f6fafb;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(#eef9f7,#f8fbfc);color:var(--ink)}
+.wrap{max-width:1100px;margin:auto;padding:20px 14px 60px}
+h1{font-size:clamp(30px,5vw,52px);margin:8px 0 4px}
+.sub{color:var(--muted);font-size:18px;margin-bottom:18px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;margin:14px 0;box-shadow:0 10px 28px rgba(26,61,79,.06)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:12px;text-align:center}
+.stat b{display:block;font-size:25px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button,select,input{font:inherit}
+button{border:0;border-radius:14px;padding:12px 15px;font-weight:750;cursor:pointer}
+.primary{background:var(--accent);color:#fff}
+.secondary{background:#edf3f6;color:var(--ink);border:1px solid var(--line)}
+.danger{background:#fff4f4;color:var(--danger);border:1px solid #efcaca}
+select,input[type=text],input[type=time]{width:100%;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink)}
+.groupgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.groupbox{border:1px solid var(--line);border-radius:16px;padding:13px;background:var(--soft)}
+.groupbox h3{margin:0 0 8px}
+.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:4px}
+.tab{white-space:nowrap;background:#edf3f6;color:var(--ink)}
+.tab.active{background:var(--ink);color:#fff}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:16px}
+table{width:100%;border-collapse:collapse;min-width:940px}
+th,td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+th{position:sticky;top:0;background:#f3f8fa;z-index:1;font-size:13px;color:#587085}
+tr.low{background:#fff8e8} tr.school{background:#f4fbff}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.highb{background:#e8f6ef;color:#17643c} .medb{background:#fff5d9;color:#7b5a00} .lowb{background:#ffe9e6;color:#9a2e25}
+.small{font-size:13px;color:var(--muted);line-height:1.35}
+.titleInput{min-width:220px}
+.noteInput{min-width:230px}
+.footerbar{position:sticky;bottom:8px;display:flex;gap:8px;justify-content:flex-end;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);padding:10px;border:1px solid var(--line);border-radius:18px;margin-top:14px}
+@media(max-width:760px){.stats{grid-template-columns:1fr 1fr}.groupgrid{grid-template-columns:1fr}.footerbar{justify-content:stretch;flex-direction:column}.footerbar button{width:100%}}
+</style>
+
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-auth-compat.js"></script>
+
+</head>
+<body>
+<div class="wrap">
+  <h1>Import du calendrier familial</h1>
+  <div class="sub">Transcription V1 des photos du calendrier papier + calendrier scolaire SD35 de Kayla.</div>
+
+
+  <div class="panel" id="firebasePanel">
+    <h2>Connexion au Planning familial</h2>
+    <div id="fbSignedOut">
+      <p class="small">Connecte-toi avec le même compte que dans le Planning familial. Si tu es déjà connecté sur ce navigateur, la connexion sera reconnue automatiquement.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input id="fbEmail" type="email" placeholder="Adresse e-mail">
+        <input id="fbPassword" type="password" placeholder="Mot de passe">
+      </div>
+      <button class="primary" style="margin-top:10px" onclick="fbLogin()">Se connecter</button>
+    </div>
+    <div id="fbSignedIn" style="display:none">
+      <div><b>🟢 Connecté au Planning familial</b></div>
+      <div class="small" id="fbUser"></div>
+      <div class="small">Destination : Firebase → Planning familial → profils Edan / Otilia / Kayla.</div>
+    </div>
+    <div id="fbMessage" class="small" style="margin-top:10px"></div>
+  </div>
+
+  <div class="panel">
+    <div class="stats">
+      <div class="stat"><b id="nAll">0</b>événements</div>
+      <div class="stat"><b id="nSelected">0</b>sélectionnés</div>
+      <div class="stat"><b id="nUnassigned">0</b>à attribuer</div>
+      <div class="stat"><b id="nReview">0</b>à vérifier</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>1. Attribuer les activités répétitives</h2>
+    <p class="small">Choisis une seule fois la personne pour une série. Le choix sera appliqué à toutes les dates de cette activité.</p>
+    <div class="groupgrid">
+      <div class="groupbox"><h3>Gym</h3><select onchange="assignGroup('Gym',this.value)"><option value="">À attribuer</option><option>Edan</option><option>Otilia</option><option>Kayla</option><option>Famille</option></select></div>
+      <div class="groupbox"><h3>Maths</h3><select onchange="assignGroup('Maths',this.value)"><option value="">À attribuer</option><option>Edan</option><option>Otilia</option><option>Kayla</option><option>Famille</option></select></div>
+      <div class="groupbox"><h3>École Kayla</h3><div><b>Kayla</b></div><div class="small">Déjà attribué automatiquement à Kayla.</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2. Vérifier les événements</h2>
+    <div class="tabs">
+      <button class="tab active" data-filter="all" onclick="setFilter('all',this)">Tous</button>
+      <button class="tab" data-filter="paper" onclick="setFilter('paper',this)">Calendrier papier</button>
+      <button class="tab" data-filter="school" onclick="setFilter('school',this)">École Kayla</button>
+      <button class="tab" data-filter="review" onclick="setFilter('review',this)">⚠️ À vérifier</button>
+      <button class="tab" data-filter="unassigned" onclick="setFilter('unassigned',this)">À attribuer</button>
+    </div>
+    <p class="small">Les lignes jaunes sont celles où la lecture de l'écriture est incertaine. Les événements barrés sont désélectionnés par défaut.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>✓</th><th>Date</th><th>Activité</th><th>Début</th><th>Fin</th><th>Personne</th><th>Source</th><th>Lecture</th><th>Note / correction</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </div>
+
+  <div class="panel">
+    <h2>3. Valider</h2>
+    <p>Quand les noms et les lectures sont corrects, clique sur <b>Valider et envoyer au Planning familial</b>. Les événements cochés seront enregistrés directement dans le même document Firebase que votre application familiale. Les autres données du Planning familial ne seront pas remplacées.</p>
+    <div id="validationMsg" class="small"></div>
+  </div>
+
+  <div class="footerbar">
+    <button class="secondary" onclick="saveLocal()">Enregistrer mes corrections</button>
+    <button class="secondary" onclick="downloadCSV()">Télécharger CSV</button>
+    <button class="primary" id="sendBtn" onclick="sendToPlanning()">Valider et envoyer au Planning familial</button>
+  </div>
+</div>
+
+<script>
+const SOURCE = [{"id": "e001", "date": "2026-09-07", "title": "RDV LifeLabs - « OM »", "start": "16:00", "end": "", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "Lecture: « RDV LifeLabs OM à 4PM ». Personne à confirmer.", "group": "", "category": "family"}, {"id": "e002", "date": "2026-09-08", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e003", "date": "2026-09-09", "title": "RDV Angio - St-Paul", "start": "12:00", "end": "", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "Lecture: « RDV Angio O/M - ST-PAUL 12PM ». Personne à confirmer.", "group": "", "category": "family"}, {"id": "e004", "date": "2026-09-10", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e005", "date": "2026-09-10", "title": "RDV docteur / téléphone", "start": "09:45", "end": "", "source": "Calendrier papier", "person": "", "confidence": "low", "include": true, "note": "Écriture difficile à lire; heure 9 h 45 semble visible.", "group": "", "category": "family"}, {"id": "e006", "date": "2026-09-11", "title": "Maths", "start": "16:30", "end": "18:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e007", "date": "2026-09-11", "title": "Bible Study", "start": "", "end": "", "source": "Calendrier papier", "person": "", "confidence": "low", "include": false, "note": "Événement pâle / possiblement barré. À confirmer avant import.", "group": "", "category": "family"}, {"id": "e008", "date": "2026-09-12", "title": "Maths", "start": "11:30", "end": "13:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e009", "date": "2026-09-12", "title": "RDV Allard - Kayla (cleaning)", "start": "14:00", "end": "", "source": "Calendrier papier", "person": "Kayla", "confidence": "high", "include": true, "note": "Le nom Kayla est écrit sur le calendrier.", "group": "", "category": "family"}, {"id": "e010", "date": "2026-09-13", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e011", "date": "2026-09-13", "title": "Recovery", "start": "", "end": "", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "", "group": "", "category": "family"}, {"id": "e012", "date": "2026-09-14", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e013", "date": "2026-09-14", "title": "Appeler Pharma Care", "start": "", "end": "", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "", "category": "family"}, {"id": "e014", "date": "2026-09-15", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e015", "date": "2026-09-16", "title": "Youth / Disciple (lecture incertaine)", "start": "18:00", "end": "19:00", "source": "Calendrier papier", "person": "", "confidence": "low", "include": false, "note": "Texte entouré et partiellement barré; à confirmer.", "group": "", "category": "family"}, {"id": "e016", "date": "2026-09-17", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e017", "date": "2026-09-18", "title": "Maths", "start": "16:30", "end": "18:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e018", "date": "2026-09-19", "title": "Metro Kids", "start": "09:00", "end": "16:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "", "category": "family"}, {"id": "e019", "date": "2026-09-20", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e020", "date": "2026-09-21", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e021", "date": "2026-09-22", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e022", "date": "2026-09-23", "title": "RDV Allard Dental - Kayla", "start": "15:00", "end": "", "source": "Calendrier papier", "person": "Kayla", "confidence": "high", "include": true, "note": "", "group": "", "category": "family"}, {"id": "e023", "date": "2026-09-24", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e024", "date": "2026-09-25", "title": "Maths", "start": "16:30", "end": "18:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e025", "date": "2026-09-26", "title": "Maths", "start": "11:30", "end": "13:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e026", "date": "2026-09-26", "title": "RDV ophtalmo - famille", "start": "14:00", "end": "", "source": "Calendrier papier", "person": "Famille", "confidence": "high", "include": true, "note": "Écrit « RDV Ophtalmo Famille - 2PM ».", "group": "", "category": "family"}, {"id": "e027", "date": "2026-09-27", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e028", "date": "2026-09-27", "title": "Recovery", "start": "", "end": "", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "", "group": "", "category": "family"}, {"id": "e029", "date": "2026-09-28", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e030", "date": "2026-09-29", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e031", "date": "2026-09-29", "title": "Parent/Volunteers Training", "start": "19:00", "end": "20:00", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "Lecture: « Parent/Volunteers training 7PM-8PM ».", "group": "", "category": "family"}, {"id": "e032", "date": "2026-09-30", "title": "NO SCHOOL / NO WORK", "start": "", "end": "", "source": "Calendrier papier", "person": "Famille", "confidence": "high", "include": true, "note": "", "group": "", "category": "family"}, {"id": "e033", "date": "2026-10-01", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e034", "date": "2026-10-04", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e035", "date": "2026-10-05", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e036", "date": "2026-10-08", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e037", "date": "2026-10-11", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e038", "date": "2026-10-12", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e039", "date": "2026-10-15", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e040", "date": "2026-10-18", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e041", "date": "2026-10-19", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e042", "date": "2026-10-22", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e043", "date": "2026-10-25", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e044", "date": "2026-10-26", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e045", "date": "2026-10-29", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e046", "date": "2026-10-02", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e047", "date": "2026-10-07", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e048", "date": "2026-10-09", "title": "Maths", "start": "16:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e049", "date": "2026-10-10", "title": "Maths", "start": "11:30", "end": "13:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e050", "date": "2026-10-13", "title": "Maths", "start": "17:30", "end": "18:00", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e051", "date": "2026-10-16", "title": "Maths", "start": "16:30", "end": "18:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e052", "date": "2026-10-21", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e053", "date": "2026-10-23", "title": "Maths", "start": "16:30", "end": "18:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e054", "date": "2026-10-28", "title": "Maths", "start": "17:00", "end": "18:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e055", "date": "2026-10-30", "title": "Maths", "start": "16:30", "end": "18:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e056", "date": "2026-10-13", "title": "RDV / appel médical (lecture incertaine)", "start": "10:30", "end": "", "source": "Calendrier papier", "person": "", "confidence": "low", "include": false, "note": "Lecture partielle: « RDV 10h30 - Dr ... / J. Patisson - APPEL ». À corriger.", "group": "", "category": "family"}, {"id": "e057", "date": "2026-10-14", "title": "Youth Serve", "start": "18:30", "end": "19:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "", "category": "family"}, {"id": "e058", "date": "2026-10-17", "title": "Metro Kids - Start", "start": "08:30", "end": "", "source": "Calendrier papier", "person": "", "confidence": "medium", "include": true, "note": "Le calendrier indique « METRO KIDS START: 8:30 AM ».", "group": "", "category": "family"}, {"id": "e059", "date": "2026-11-01", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e060", "date": "2026-11-02", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e061", "date": "2026-11-05", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e062", "date": "2026-11-08", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e063", "date": "2026-11-09", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e064", "date": "2026-11-12", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e065", "date": "2026-11-15", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e066", "date": "2026-11-16", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e067", "date": "2026-11-19", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e068", "date": "2026-11-22", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e069", "date": "2026-11-23", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e070", "date": "2026-11-26", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e071", "date": "2026-11-29", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e072", "date": "2026-11-30", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e073", "date": "2026-11-04", "title": "Maths", "start": "16:00", "end": "17:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e074", "date": "2026-11-06", "title": "Maths", "start": "15:30", "end": "17:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e075", "date": "2026-11-13", "title": "Maths", "start": "15:30", "end": "17:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e076", "date": "2026-11-14", "title": "Maths", "start": "12:00", "end": "13:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e077", "date": "2026-11-18", "title": "Maths", "start": "16:00", "end": "17:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e078", "date": "2026-11-20", "title": "Maths", "start": "15:30", "end": "17:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e079", "date": "2026-11-25", "title": "Maths", "start": "16:00", "end": "17:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e080", "date": "2026-11-27", "title": "Maths", "start": "15:30", "end": "17:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e081", "date": "2026-11-28", "title": "Maths", "start": "12:00", "end": "13:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e082", "date": "2026-12-03", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e083", "date": "2026-12-06", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e084", "date": "2026-12-10", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e085", "date": "2026-12-13", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e086", "date": "2026-12-17", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e087", "date": "2026-12-20", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e088", "date": "2026-12-24", "title": "Gym", "start": "17:30", "end": "20:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e089", "date": "2026-12-27", "title": "Gym", "start": "09:00", "end": "12:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Gym", "category": "family"}, {"id": "e090", "date": "2026-12-02", "title": "Maths", "start": "16:00", "end": "17:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e091", "date": "2026-12-04", "title": "Maths", "start": "15:30", "end": "17:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e092", "date": "2026-12-05", "title": "Maths", "start": "12:00", "end": "13:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e093", "date": "2026-12-09", "title": "Maths", "start": "16:00", "end": "17:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e094", "date": "2026-12-11", "title": "Maths", "start": "15:30", "end": "17:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e095", "date": "2026-12-12", "title": "Maths", "start": "12:00", "end": "13:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e096", "date": "2026-12-16", "title": "Maths", "start": "16:00", "end": "17:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e097", "date": "2026-12-18", "title": "Maths", "start": "15:30", "end": "17:00", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e098", "date": "2026-12-19", "title": "Maths", "start": "12:00", "end": "13:30", "source": "Calendrier papier", "person": "", "confidence": "high", "include": true, "note": "", "group": "Maths", "category": "family"}, {"id": "e099", "date": "2026-12-31", "title": "Gym ? (barré)", "start": "", "end": "", "source": "Calendrier papier", "person": "", "confidence": "low", "include": false, "note": "Une mention semble barrée le 31 décembre; non sélectionnée par défaut.", "group": "", "category": "family"}, {"id": "e100", "date": "2026-09-07", "title": "Labour Day - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e101", "date": "2026-09-08", "title": "Rentrée scolaire", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e102", "date": "2026-09-25", "title": "School Improvement Day - élèves absents", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e103", "date": "2026-09-30", "title": "Truth and Reconciliation Day - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e104", "date": "2026-10-12", "title": "Thanksgiving - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e105", "date": "2026-10-21", "title": "Sortie 1 h plus tôt - rencontres parents/profs", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e106", "date": "2026-10-22", "title": "Sortie 1 h plus tôt - rencontres parents/profs", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e107", "date": "2026-10-23", "title": "Professional Development Day - élèves absents", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e108", "date": "2026-11-11", "title": "Remembrance Day - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e109", "date": "2026-11-20", "title": "Design & Assessment Day / Learning Update Prep - élèves absents", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e110", "date": "2026-11-27", "title": "Learning Updates Issued", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e111", "date": "2026-12-17", "title": "Dernier jour avant les vacances d'hiver", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e112", "date": "2027-01-05", "title": "Reprise de l'école après les vacances d'hiver", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e113", "date": "2027-01-28", "title": "Dernier jour des cours réguliers - Semestre 1", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e114", "date": "2027-02-03", "title": "Début du Semestre 2", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e115", "date": "2027-02-05", "title": "Learning Updates Issued", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e116", "date": "2027-02-08", "title": "Professional Development Day - élèves absents", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e117", "date": "2027-02-15", "title": "Family Day - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e118", "date": "2027-03-10", "title": "Sortie 1 h plus tôt - rencontres parents/profs", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e119", "date": "2027-03-11", "title": "Sortie 1 h plus tôt - rencontres parents/profs", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e120", "date": "2027-03-12", "title": "Dernier jour avant Spring Break", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e121", "date": "2027-03-26", "title": "Good Friday - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e122", "date": "2027-03-29", "title": "Easter Monday - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e123", "date": "2027-03-30", "title": "Reprise de l'école après Spring Break", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e124", "date": "2027-04-12", "title": "Design & Assessment Day / Learning Update Prep - élèves absents", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e125", "date": "2027-04-23", "title": "Learning Updates Issued", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e126", "date": "2027-05-21", "title": "Professional Development Day - élèves absents", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e127", "date": "2027-05-24", "title": "Victoria Day - école fermée", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e128", "date": "2027-06-29", "title": "Final Learning Update + dernier jour des élèves", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}, {"id": "e129", "date": "2027-06-30", "title": "Administrative Day - élèves absents", "start": "", "end": "", "source": "SD35 - calendrier secondaire 2026-2027", "person": "Kayla", "confidence": "high", "include": true, "note": "Événement officiel du calendrier secondaire SD35.", "group": "École Kayla", "category": "school"}];
+let events = JSON.parse(localStorage.getItem('familyCalendarImportV1') || 'null') || SOURCE;
+let currentFilter = 'all';
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function personOptions(v){
+  return ['','Edan','Otilia','Kayla','Famille'].map(x=>`<option ${x===v?'selected':''} value="${x}">${x||'À attribuer'}</option>`).join('');
+}
+function badge(c){
+  if(c==='low') return '<span class="badge lowb">À vérifier</span>';
+  if(c==='medium') return '<span class="badge medb">Probable</span>';
+  return '<span class="badge highb">Clair</span>';
+}
+function show(e){
+  if(currentFilter==='paper') return e.category!=='school';
+  if(currentFilter==='school') return e.category==='school';
+  if(currentFilter==='review') return e.confidence==='low' || !e.include;
+  if(currentFilter==='unassigned') return !e.person;
+  return true;
+}
+function render(){
+  const tb=document.getElementById('rows'); tb.innerHTML='';
+  events.filter(show).sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||'')).forEach(e=>{
+    const tr=document.createElement('tr');
+    tr.className=(e.confidence==='low'?'low ':'')+(e.category==='school'?'school':'');
+    tr.innerHTML=`
+      <td><input type="checkbox" ${e.include?'checked':''} onchange="patch('${e.id}','include',this.checked)"></td>
+      <td><b>${esc(e.date)}</b></td>
+      <td><input class="titleInput" type="text" value="${esc(e.title)}" onchange="patch('${e.id}','title',this.value)"></td>
+      <td><input type="time" value="${esc(e.start)}" onchange="patch('${e.id}','start',this.value)"></td>
+      <td><input type="time" value="${esc(e.end)}" onchange="patch('${e.id}','end',this.value)"></td>
+      <td><select onchange="patch('${e.id}','person',this.value)">${personOptions(e.person)}</select></td>
+      <td><div class="small">${esc(e.source)}</div></td>
+      <td>${badge(e.confidence)}</td>
+      <td><input class="noteInput" type="text" value="${esc(e.note)}" onchange="patch('${e.id}','note',this.value)"></td>`;
+    tb.appendChild(tr);
+  });
+  updateStats();
+}
+function patch(id,key,val){
+  const e=events.find(x=>x.id===id); if(e) e[key]=val;
+  localStorage.setItem('familyCalendarImportV1',JSON.stringify(events)); render();
+}
+function assignGroup(group,person){
+  events.forEach(e=>{if(e.group===group)e.person=person});
+  localStorage.setItem('familyCalendarImportV1',JSON.stringify(events)); render();
+}
+function setFilter(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); btn.classList.add('active'); render();
+}
+function updateStats(){
+  document.getElementById('nAll').textContent=events.length;
+  document.getElementById('nSelected').textContent=events.filter(e=>e.include).length;
+  document.getElementById('nUnassigned').textContent=events.filter(e=>e.include&&!e.person).length;
+  document.getElementById('nReview').textContent=events.filter(e=>e.confidence==='low'||!e.include).length;
+}
+function saveLocal(){
+  localStorage.setItem('familyCalendarImportV1',JSON.stringify(events));
+  document.getElementById('validationMsg').textContent='Corrections enregistrées sur cet appareil.';
+}
+function selected(){
+  return events.filter(e=>e.include).map(e=>({
+    date:e.date,title:e.title,start:e.start,end:e.end,person:e.person||'À attribuer',
+    source:e.source,note:e.note,group:e.group,category:e.category
+  }));
+}
+function downloadBlob(name,type,text){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+function downloadJSON(){
+  const un=events.filter(e=>e.include&&!e.person);
+  document.getElementById('validationMsg').textContent=un.length?`${un.length} événement(s) restent à attribuer. Le JSON est quand même généré pour vérification.`:'Sélection validée : tous les événements cochés ont une personne.';
+  downloadBlob('planning_familial_evenements_valides.json','application/json',JSON.stringify(selected(),null,2));
+}
+function csvCell(v){return '"'+String(v??'').replaceAll('"','""')+'"'}
+function downloadCSV(){
+  const h=['date','activité','début','fin','personne','source','note'];
+  const lines=[h.map(csvCell).join(',')];
+  selected().forEach(e=>lines.push([e.date,e.title,e.start,e.end,e.person,e.source,e.note].map(csvCell).join(',')));
+  downloadBlob('planning_familial_evenements_valides.csv','text/csv;charset=utf-8','\ufeff'+lines.join('\n'));
+}
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBM840ACPSriz6CxpUYnhyr4BJG-lQ-NSQ",
+  authDomain: "planning-familial-7a366.firebaseapp.com",
+  projectId: "planning-familial-7a366",
+  storageBucket: "planning-familial-7a366.firebasestorage.app",
+  messagingSenderId: "955656359629",
+  appId: "1:955656359629:web:cf6a2c8004c3d74ec6e384"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth=firebase.auth();
+const fbDb=firebase.firestore();
+const fbFamilyDoc=fbDb.collection('planning').doc('famille-edan');
+
+function setFbMessage(msg,isError=false){
+  const el=document.getElementById('fbMessage');
+  if(!el)return;
+  el.textContent=msg||'';
+  el.style.color=isError?'#a62b2b':'#168b7e';
+}
+function fbLogin(){
+  const email=document.getElementById('fbEmail').value.trim();
+  const password=document.getElementById('fbPassword').value;
+  if(!email||!password){setFbMessage('Entre l’adresse e-mail et le mot de passe.',true);return;}
+  setFbMessage('Connexion…');
+  fbAuth.signInWithEmailAndPassword(email,password)
+    .then(()=>setFbMessage('Connexion réussie.'))
+    .catch(err=>{console.error(err);setFbMessage('Connexion impossible. Vérifie l’adresse e-mail et le mot de passe.',true);});
+}
+fbAuth.onAuthStateChanged(user=>{
+  const out=document.getElementById('fbSignedOut'), inside=document.getElementById('fbSignedIn');
+  if(user){
+    out.style.display='none';inside.style.display='block';
+    document.getElementById('fbUser').textContent=user.email||'Utilisateur connecté';
+    setFbMessage('Prêt à envoyer les événements.');
+  }else{
+    out.style.display='block';inside.style.display='none';
+    setFbMessage('Connexion requise avant l’envoi.');
+  }
+});
+
+function normalizedPerson(p){
+  if(p==='Edan'||p==='Otilia'||p==='Kayla'||p==='Famille')return p;
+  return '';
+}
+function makeImportKey(e){
+  return [e.date,normalizedPerson(e.person),String(e.title||'').trim().toLowerCase(),e.start||'',e.end||''].join('|');
+}
+async function sendToPlanning(){
+  const user=fbAuth.currentUser;
+  if(!user){setFbMessage('Connecte-toi d’abord au Planning familial.',true);return;}
+
+  saveLocal();
+  const chosen=events.filter(e=>e.include);
+  const unassigned=chosen.filter(e=>!normalizedPerson(e.person));
+  if(unassigned.length){
+    setFbMessage(`${unassigned.length} événement(s) sont encore sans personne. Attribue Edan, Otilia, Kayla ou Famille avant l’envoi.`,true);
+    currentFilter='unassigned';render();window.scrollTo({top:document.body.scrollHeight/3,behavior:'smooth'});return;
+  }
+  if(!chosen.length){setFbMessage('Aucun événement n’est sélectionné.',true);return;}
+
+  const sendBtn=document.getElementById('sendBtn');
+  sendBtn.disabled=true;
+  sendBtn.textContent='Envoi vers le Planning familial…';
+  setFbMessage('Vérification et synchronisation avec Firebase…');
+
+  try{
+    const result=await fbDb.runTransaction(async tx=>{
+      const snap=await tx.get(fbFamilyDoc);
+      const current=snap.exists?snap.data():{};
+      const existing=Array.isArray(current.familyEvents)?current.familyEvents:[];
+      const byKey=new Map(existing.map(e=>[e.importKey||makeImportKey(e),e]));
+      let added=0, updated=0;
+
+      chosen.forEach(e=>{
+        const clean={
+          id:e.id,
+          date:e.date,
+          title:String(e.title||'').trim(),
+          start:e.start||'',
+          end:e.end||'',
+          person:normalizedPerson(e.person),
+          source:e.source||'Calendrier familial',
+          note:e.note||'',
+          group:e.group||'',
+          category:e.category||'family',
+          importBatch:'papier-sd35-v1',
+          importedBy:user.email||user.uid,
+          importedAt:new Date().toISOString()
+        };
+        clean.importKey=makeImportKey(clean);
+        if(byKey.has(clean.importKey))updated++;else added++;
+        byKey.set(clean.importKey,clean);
+      });
+
+      const merged=[...byKey.values()].sort((a,b)=>
+        String(a.date||'').localeCompare(String(b.date||'')) ||
+        String(a.start||'').localeCompare(String(b.start||''))
+      );
+      tx.set(fbFamilyDoc,{
+        familyEvents:merged,
+        familyEventsLastImportAt:firebase.firestore.FieldValue.serverTimestamp(),
+        familyEventsLastImportBy:user.email||user.uid,
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+      return {added,updated,total:chosen.length,stored:merged.length};
+    });
+
+    localStorage.setItem('familyCalendarImportLastSuccess',JSON.stringify({at:new Date().toISOString(),...result}));
+    setFbMessage(`✅ Envoyé au Planning familial : ${result.total} événement(s) validé(s), ${result.added} ajouté(s), ${result.updated} déjà présent(s)/mis à jour.`);
+    document.getElementById('validationMsg').innerHTML=
+      `<b>Import Firebase réussi.</b> Les événements sont maintenant disponibles dans les profils Edan, Otilia et Kayla.`;
+    sendBtn.textContent='✓ Envoyé au Planning familial';
+    setTimeout(()=>{sendBtn.disabled=false;sendBtn.textContent='Valider et envoyer au Planning familial';},2500);
+  }catch(err){
+    console.error(err);
+    setFbMessage('Erreur pendant l’envoi Firebase. Aucun autre contenu du Planning familial n’a été remplacé. '+(err.message||''),true);
+    sendBtn.disabled=false;
+    sendBtn.textContent='Valider et envoyer au Planning familial';
+  }
+}
+
+render();
+</script>
+</body>
+</html>
