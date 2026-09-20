@@ -102,7 +102,7 @@ textarea{min-height:180px}
 </style>
 <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js">
 setInterval(()=>{refreshBadges(); if(detail.classList.contains('active'))renderDetail();},60000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshBadges();if(detail.classList.contains('active'))renderDetail();}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshBadges();if(detail.classList.contains('active'))renderDetail();setTimeout(()=>maybeSendTomorrowNotification(false),300);}});
 </script>
 <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-auth-compat.js"></script>
@@ -139,10 +139,12 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshBa
   </div>
 
   <section id="home" class="screen active">
-    <div style="margin:0 0 16px">
+    <div id="tomorrowAlerts" style="margin:0 0 14px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 16px">
       <a href="import-calendar.html" style="text-decoration:none">
-        <button class="secondary" style="width:100%">📥 Importer / vérifier le calendrier familial</button>
+        <button class="secondary" style="width:100%;height:100%">📥 Importer / vérifier le calendrier</button>
       </a>
+      <button id="notificationBtn" class="secondary" style="width:100%" onclick="enablePhoneAlerts()">🔔 Activer les alertes</button>
     </div>
     <div class="grid">
       <div class="card person-card" onclick="openPerson('edan')">
@@ -670,11 +672,144 @@ function kaylaCurrentStatus(){
   }
   return 'À la maison';
 }
+function tomorrowEventsFor(person){
+  const day=tomorrowKey();
+  let list=[];
+
+  // Events imported from the paper / school calendar.
+  list.push(...familyEventsFor(person,day));
+
+  // Existing activities already entered directly in each profile.
+  if(person==='otilia'){
+    list.push(...otiliaEventsForDate(day));
+  }else if(person==='kayla'){
+    list.push(...((data.kayla&&data.kayla.activities)||[]).filter(a=>isActivityForDate(a,day)).map(a=>({
+      ...a,label:a.label||a.name||'Activité',name:a.name||a.label||'Activité'
+    })));
+    ensureKaylaWeeklySchedule();
+    const wd=dateFromKey(day).getDay();
+    list.push(...(data.kaylaWeeklySchedule||[]).filter(a=>a.active!==false&&(a.days||[]).map(Number).includes(wd)).map(a=>({
+      ...a,label:a.label||'Activité',name:a.label||'Activité'
+    })));
+  }else if(person==='edan'){
+    const dispatch=(data.edan&&data.edan.dispatches||{})[day];
+    if(dispatch){
+      list.push({
+        label:`Travail ${dispatch.company||'Bearclaw'}`,
+        name:`Travail ${dispatch.company||'Bearclaw'}`,
+        start:dispatch.start_time||'',
+        location:cleanDispatchAddress(dispatch.address||'')
+      });
+    }
+    const church=data.edan&&data.edan.churchSchedule&&data.edan.churchSchedule[day];
+    if(church){
+      const normalized=normalizeSundayEvent(church);
+      if(normalized)list.push({
+        label:normalized.label||'Sunday Service',
+        name:normalized.label||'Sunday Service',
+        start:normalized.start_time||'',
+        end:normalized.end_time||''
+      });
+    }
+  }
+
+  // Remove duplicates that can appear because imported events are also merged
+  // into some profile-specific event functions.
+  const seen=new Set();
+  return list.filter(e=>{
+    const key=[String(e.label||e.name||'').trim().toLowerCase(),e.start||'',e.end||'',e.location||''].join('|');
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  }).sort((a,b)=>(timeToMinutes(a.start)||9999)-(timeToMinutes(b.start)||9999));
+}
+function tomorrowReminderHTML(person){
+  const events=tomorrowEventsFor(person);
+  if(!events.length)return '';
+  const lines=events.map(e=>{
+    const label=esc(e.label||e.name||'Activité');
+    const time=e.start?` · ${esc(e.start)}${e.end?`–${esc(e.end)}`:''}`:'';
+    const place=e.location?` · ${esc(e.location)}`:'';
+    return `<div style="margin-top:6px"><b>${label}</b>${time}${place}</div>`;
+  }).join('');
+  return `<div class="info" style="border-color:#f1c85b;background:#fff9e8">
+    <span>⚠️ Rappel pour demain</span>
+    <strong>Attention, demain vous avez :</strong>
+    ${lines}
+  </div>`;
+}
+function renderTomorrowAlerts(){
+  const box=document.getElementById('tomorrowAlerts');
+  if(!box)return;
+  const people=['edan','otilia','kayla'];
+  const blocks=people.map(person=>{
+    const ev=tomorrowEventsFor(person);
+    if(!ev.length)return '';
+    const summary=ev.map(e=>`${e.start?e.start+' · ':''}${e.label||e.name||'Activité'}`).join(' • ');
+    return `<div class="info" style="margin-bottom:8px;border-color:#f1c85b;background:#fff9e8">
+      <span>⚠️ Demain · ${personDisplayName(person)}</span>
+      <strong>${esc(summary)}</strong>
+    </div>`;
+  }).join('');
+  box.innerHTML=blocks;
+}
+function updateNotificationButton(){
+  const btn=document.getElementById('notificationBtn');
+  if(!btn)return;
+  if(!('Notification' in window)){
+    btn.textContent='🔔 Alertes dans l’app';
+    return;
+  }
+  if(Notification.permission==='granted')btn.textContent='🔔 Alertes téléphone activées';
+  else if(Notification.permission==='denied')btn.textContent='🔕 Alertes refusées';
+  else btn.textContent='🔔 Activer les alertes';
+}
+async function enablePhoneAlerts(){
+  if(!('Notification' in window)){
+    alert("Ce navigateur ne permet pas cette alerte directe. Les rappels restent visibles dans le Planning familial.");
+    return;
+  }
+  try{
+    const permission=await Notification.requestPermission();
+    updateNotificationButton();
+    if(permission==='granted'){
+      maybeSendTomorrowNotification(true);
+    }
+  }catch(err){
+    console.error(err);
+    alert("Impossible d’activer les notifications sur ce navigateur.");
+  }
+}
+function maybeSendTomorrowNotification(force=false){
+  if(!('Notification' in window) || Notification.permission!=='granted')return;
+  const people=['edan','otilia','kayla'];
+  const rows=[];
+  people.forEach(person=>{
+    const ev=tomorrowEventsFor(person);
+    if(ev.length)rows.push(`${personDisplayName(person)} : ${ev.map(e=>`${e.start?e.start+' ':''}${e.label||e.name||'Activité'}`).join(', ')}`);
+  });
+  if(!rows.length)return;
+
+  const stamp=`${tomorrowKey()}|${rows.join('|')}`;
+  const last=localStorage.getItem('familyTomorrowNotificationStamp');
+  if(!force && last===stamp)return;
+
+  try{
+    new Notification('Planning familial · Demain',{
+      body:rows.join('\n'),
+      tag:'planning-familial-demain'
+    });
+    localStorage.setItem('familyTomorrowNotificationStamp',stamp);
+  }catch(err){console.warn(err);}
+}
 function refreshBadges(){
   ensureRecurringSchedules();
   if(window.edanBadge)edanBadge.textContent=edanCurrentStatus();
   if(window.otiliaBadge)otiliaBadge.textContent=otiliaCurrentStatus();
   if(window.kaylaBadge)kaylaBadge.textContent=kaylaCurrentStatus();
+  renderTomorrowAlerts();
+  updateNotificationButton();
+  setTimeout(()=>maybeSendTomorrowNotification(false),250);
 }
 function renderDetail(){
   if(!detail.classList.contains('active'))return;
@@ -1265,6 +1400,7 @@ function renderEdan(){
     detailContent.innerHTML=`
       ${tabs}
       ${calendarBtn}
+      ${tomorrowReminderHTML('edan')}
       <div class="info"><span>Sunday</span><strong>Sunday</strong></div>
 
       ${service?`
@@ -1281,6 +1417,8 @@ function renderEdan(){
   if(!d){
     detailContent.innerHTML=`
       ${tabs}
+      ${calendarBtn}
+      ${tomorrowReminderHTML('edan')}
       <div class="info"><span>${label}</span><strong>${isTrouble?'Trouble Call':esc(edanSlotEnglishName(edanSelectedSlot))}</strong></div>
       <div class="subtitle" style="margin:16px 0">Aucun dispatch enregistré.</div>
       <div class="toolbar"><button class="primary" onclick="openDispatch()">Importer le dispatch</button></div>
@@ -1290,6 +1428,8 @@ function renderEdan(){
 
   detailContent.innerHTML=`
     ${tabs}
+    ${calendarBtn}
+    ${tomorrowReminderHTML('edan')}
     <div class="toolbar">
       <button class="primary" onclick="openDispatch()">Importer ou remplacer le dispatch</button>
       ${d.address?'<button class="secondary" onclick="openMap()">📍 Ouvrir dans Maps</button>':''}
@@ -1339,7 +1479,7 @@ function renderOtilia(){
   detailSubtitle.textContent='Télétravail et activités';
   const worksToday=weekday>=1 && weekday<=5;
   const workText=(weekday>=1&&weekday<=4)?'Travail à la maison · 06:00–12:00 · pause 12:00–12:30 · 12:30–18:00':(weekday===5?'Travail à la maison · 06:00–12:00':'');
-  detailContent.innerHTML=`<button class="secondary" style="width:100%;margin-bottom:12px" onclick="openCalendar('otilia')">📅 Calendar</button>`+`
+  detailContent.innerHTML=`<button class="secondary" style="width:100%;margin-bottom:12px" onclick="openCalendar('otilia')">📅 Calendar</button>${tomorrowReminderHTML('otilia')}`+`
     <div class="info"><span>Date</span><strong>${esc(formatWorkDate(day))}</strong></div>
     ${worksToday?`<div class="info"><span>Programme du jour</span><strong>${workText}</strong></div>`:'<div class="info"><span>Programme du jour</span><strong>Pas de télétravail prévu</strong></div>'}
     <div class="toolbar">
