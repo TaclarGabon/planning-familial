@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Familial V5.3.8 — Dynamic Status Fix</title>
+<title>Planning Familial V5.7.1 — Import SMS Dispatch</title>
 <!-- Planning familial V5.4 - calendrier vivant Otilia -->
 <style>
 :root {
@@ -142,6 +142,8 @@ dateEngineSelfCheck();
       <button class="secondary" onclick="logout()">Déconnexion</button>
     </div>
   </div>
+
+  <div id="dispatchImportStatus" role="status" aria-live="polite" style="display:none;background:#eefaf8;border:1px solid #9fd9d1;border-radius:12px;padding:12px;margin:10px 0 16px;font-size:14px"></div>
 
   <section id="home" class="screen active">
     <div id="tomorrowAlerts" style="margin:0 0 14px"></div>
@@ -1683,30 +1685,100 @@ function importDispatch(){
   renderEdan();
 }
 
+// V5.7.1 — Import sécurisé d'un dispatch reçu par Raccourcis iPhone.
+// Un lien n'écrit jamais dans Firebase avant authentification ET réception
+// d'un premier snapshot du document familial.
+let dispatchImportInProgress=false;
+let dispatchImportFailed=false;
+
+function showDispatchImportStatus(message, retry=false){
+  const el=document.getElementById('dispatchImportStatus');
+  if(!el)return;
+  el.style.display='block';
+  el.textContent=message;
+  if(retry){
+    const btn=document.createElement('button');
+    btn.className='secondary';
+    btn.style.marginLeft='10px';
+    btn.textContent='Réessayer';
+    btn.addEventListener('click',()=>{dispatchImportFailed=false;processPendingDispatch();});
+    el.appendChild(btn);
+  }
+}
+function hideDispatchImportStatus(){
+  const el=document.getElementById('dispatchImportStatus');
+  if(el)el.style.display='none';
+}
 function rememberIncomingDispatch(){
-  const params=new URLSearchParams(window.location.search);
-  const incoming=params.get('dispatch');
+  const url=new URL(window.location.href);
+  let incoming=url.searchParams.get('dispatch');
+  // Le fragment #dispatch= évite de transmettre le SMS dans la requête HTTP.
+  if(!incoming && url.hash.startsWith('#dispatch=')){
+    incoming=new URLSearchParams(url.hash.slice(1)).get('dispatch');
+  }
   if(!incoming)return false;
-  sessionStorage.setItem('pending_dispatch',incoming);
-  history.replaceState({},document.title,window.location.pathname);
+  try{sessionStorage.setItem('pending_dispatch',incoming);}catch(err){
+    console.error('Impossible de mémoriser le dispatch',err);
+    return false;
+  }
+  url.searchParams.delete('dispatch');
+  if(url.hash.startsWith('#dispatch='))url.hash='';
+  // Retirer rapidement les données du SMS de l'URL visible et de l'historique.
+  history.replaceState({},document.title,url.pathname+url.search+url.hash);
   return true;
 }
-
-function processPendingDispatch(){
+function validIncomingDispatch(parsed){
+  if(!parsed || !parsed.date || !parsed.start_time || !parsed.company || !parsed.address || !parsed.truck)return false;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(parsed.date))return false;
+  const parts=parsed.date.split('-').map(Number);
+  const dt=new Date(parts[0],parts[1]-1,parts[2],12);
+  if(localDateKey(dt)!==parsed.date)return false;
+  const [hh,mm]=parsed.start_time.split(':').map(Number);
+  if(!(hh>=0&&hh<24&&mm>=0&&mm<60))return false;
+  return true;
+}
+async function processPendingDispatch(){
+  if(dispatchImportInProgress || dispatchImportFailed || !auth.currentUser || !firebaseLoaded)return;
   const incoming=sessionStorage.getItem('pending_dispatch');
   if(!incoming)return;
-  if(applyDispatchMessage(incoming,'sms')){
-    const parsed=parseDispatchMessage(incoming);
-    if(parsed && parsed.date){
-      const day=dateFromKey(parsed.date).getDay();
-      edanSelectedSlot=day;
-    }
+  const parsed=parseDispatchMessage(incoming);
+  if(!validIncomingDispatch(parsed)){
+    dispatchImportFailed=true;
+    showDispatchImportStatus('Le SMS est reçu, mais certains éléments (date, heure, entreprise, adresse ou camion) sont manquants. Aucune donnée n’a été modifiée.',true);
+    return;
+  }
+  parsed.import_source='sms';
+  dispatchImportInProgress=true;
+  showDispatchImportStatus('Dispatch reçu. Enregistrement sécurisé dans Firebase…');
+  try{
+    // Transaction ciblée : préserve les autres profils et activités.
+    const result=await db.runTransaction(async transaction=>{
+      const snap=await transaction.get(familyDoc);
+      if(!snap.exists)throw new Error('Le planning Firebase n’est pas encore initialisé.');
+      const remote=snap.data()||{};
+      const previous=remote.edan && remote.edan.dispatches && remote.edan.dispatches[parsed.date];
+      if(previous && previous.raw_message===incoming)return 'duplicate';
+      transaction.update(familyDoc,
+        new firebase.firestore.FieldPath('edan','dispatches',parsed.date),parsed,
+        'updatedAt',firebase.firestore.FieldValue.serverTimestamp());
+      return 'saved';
+    });
     sessionStorage.removeItem('pending_dispatch');
+    dispatchImportFailed=false;
+    edanSelectedSlot=dateFromKey(parsed.date).getDay();
     current='edan';
     home.classList.remove('active');
     detail.classList.add('active');
     renderDetail();
-    alert('Nouveau dispatch reçu et synchronisé.');
+    showDispatchImportStatus(result==='duplicate'
+      ? 'Ce dispatch était déjà enregistré dans Firebase : aucun doublon créé.'
+      : `Dispatch du ${parsed.date} enregistré dans Firebase.`,false);
+  }catch(err){
+    console.error('Échec import dispatch',err);
+    dispatchImportFailed=true;
+    showDispatchImportStatus('Importation non enregistrée : vérifie la connexion Firebase. Le SMS reste en attente dans ce navigateur.',true);
+  }finally{
+    dispatchImportInProgress=false;
   }
 }
 
@@ -1876,6 +1948,8 @@ function startPlanningSync(){
       applyingRemote=false;
       firebaseLoaded=true;
       setSyncStatus('online','Synchronisé avec Firebase');
+      // Ne lancer l'import qu'après le chargement effectif des données distantes.
+      processPendingDispatch();
     }else if(!firebaseLoaded){
       firebaseLoaded=true;
       familyDoc.set({
@@ -1932,8 +2006,9 @@ auth.onAuthStateChanged(user=>{
     appShell.classList.remove('hidden');
     userEmail.textContent=user.email||'Utilisateur connecté';
     firebaseLoaded=false;
+    dispatchImportFailed=false;
     startPlanningSync();
-    setTimeout(processPendingDispatch,1200);
+    // L'import est déclenché par le premier snapshot Firebase, pas par un délai arbitraire.
   }else{
     stopPlanningSync();
     appShell.classList.add('hidden');
